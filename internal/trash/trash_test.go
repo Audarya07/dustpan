@@ -1,9 +1,11 @@
 package trash
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -182,7 +184,8 @@ func TestDeletePermanentlyRefusesReplacedPath(t *testing.T) {
 	fi, err := os.Lstat(p)
 	must(t, err)
 	must(t, os.Remove(p))
-	writeFile(t, root, "victim", "different")
+	time.Sleep(20 * time.Millisecond)
+	writeFile(t, root, "victim", "different and longer")
 	if err := DeletePermanently(p, fi); err == nil {
 		t.Fatal("expected refusal")
 	}
@@ -239,5 +242,81 @@ func TestForUserDoesNotTouchDisk(t *testing.T) {
 	tr := ForUser(envWithHome(home))
 	if !strings.HasPrefix(tr.Dir, home) || exists(tr.Dir) {
 		t.Fatalf("unexpected %s", tr.Dir)
+	}
+}
+
+func TestRenameNoReplaceKeepsExistingDestination(t *testing.T) {
+	root := t.TempDir()
+	from := writeFile(t, root, "from", "new")
+	to := writeFile(t, root, "to", "precious")
+	if err := renameNoReplace(from, to); !errors.Is(err, syscall.EEXIST) {
+		t.Fatalf("want EEXIST, got %v", err)
+	}
+	if b, _ := os.ReadFile(to); string(b) != "precious" {
+		t.Fatal("destination replaced")
+	}
+}
+
+func TestMoveRaceDoesNotClobber(t *testing.T) {
+	for _, fd := range []bool{false, true} {
+		root := t.TempDir()
+		tr := Trash{Dir: filepath.Join(root, "Trash"), forceFreedesktop: fd}.WithClock(fixedClock())
+		must(t, os.MkdirAll(tr.Dir, 0o700))
+		planted := false
+		tr.beforeRename = func(dest string) {
+			if !planted {
+				planted = true
+				must(t, os.WriteFile(dest, []byte("finder"), 0o600))
+			}
+		}
+		src := writeFile(t, root, "item", "mine")
+		dest, err := tr.Move(src)
+		must(t, err)
+		if filepath.Base(dest) == "item" {
+			t.Fatal("landed on the raced name")
+		}
+		if b, _ := os.ReadFile(filepath.Join(tr.filesDir(), "item")); string(b) != "finder" {
+			t.Fatalf("raced item clobbered: %q", b)
+		}
+		if b, _ := os.ReadFile(dest); string(b) != "mine" {
+			t.Fatal("item content wrong")
+		}
+		if fd {
+			if exists(filepath.Join(tr.Dir, "info", "item.trashinfo")) {
+				t.Fatal("orphan info for raced name not cleaned")
+			}
+		}
+	}
+}
+
+func TestForUserWiresClock(t *testing.T) {
+	e := envWithHome(t.TempDir())
+	e.Now = fixedClock()
+	if ForUser(e).clock() != fixedClock()() {
+		t.Fatal("ForUser did not wire e.Now")
+	}
+}
+
+func TestDeletePermanentlyRefusesModifiedSameInode(t *testing.T) {
+	root := t.TempDir()
+	p := writeFile(t, root, "f", "a")
+	fi, err := os.Lstat(p)
+	must(t, err)
+	time.Sleep(20 * time.Millisecond)
+	must(t, os.WriteFile(p, []byte("changed"), 0o600)) // same inode, new ctime
+	if err := DeletePermanently(p, fi); err == nil || !exists(p) {
+		t.Fatal("expected refusal on ctime change")
+	}
+}
+
+func TestDeletePermanentlyRefusesTypeChange(t *testing.T) {
+	root := t.TempDir()
+	p := writeFile(t, root, "f", "a")
+	fi, err := os.Lstat(p)
+	must(t, err)
+	must(t, os.Remove(p))
+	must(t, os.Mkdir(p, 0o700))
+	if err := DeletePermanently(p, fi); err == nil || !exists(p) {
+		t.Fatal("expected refusal on type change")
 	}
 }

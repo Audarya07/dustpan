@@ -22,6 +22,8 @@ type Trash struct {
 
 	// now overrides the clock (tests); nil means time.Now.
 	now func() time.Time
+	// beforeRename is a test hook called just before the exclusive rename.
+	beforeRename func(dest string)
 	// forceFreedesktop enables the files/+info/ layout on any OS (tests).
 	forceFreedesktop bool
 }
@@ -116,7 +118,13 @@ func (t Trash) Move(path string) (string, error) {
 		} else if !errors.Is(err, os.ErrNotExist) {
 			return "", err
 		}
-		if err := os.Rename(path, dest); err != nil {
+		if t.beforeRename != nil {
+			t.beforeRename(dest)
+		}
+		if err := renameNoReplace(path, dest); err != nil {
+			if errors.Is(err, syscall.EEXIST) {
+				continue // lost a race for this name; try the next one
+			}
 			return "", fmt.Errorf("trash: move %s: %w", path, err)
 		}
 		return dest, nil
@@ -173,8 +181,14 @@ func (t Trash) moveFreedesktop(path string) (string, error) {
 			os.Remove(infoPath)
 			return "", errors.Join(werr, cerr)
 		}
-		if err := os.Rename(path, dest); err != nil {
+		if t.beforeRename != nil {
+			t.beforeRename(dest)
+		}
+		if err := renameNoReplace(path, dest); err != nil {
 			os.Remove(infoPath)
+			if errors.Is(err, syscall.EEXIST) {
+				continue // someone took the name; try the next one
+			}
 			return "", fmt.Errorf("trash: move %s: %w", path, err)
 		}
 		return dest, nil
@@ -194,6 +208,17 @@ func DeletePermanently(path string, expect os.FileInfo) error {
 	}
 	if !os.SameFile(now, expect) {
 		return fmt.Errorf("trash: %s changed since it was checked; refusing to delete", path)
+	}
+	// SameFile alone is unreliable under inode reuse, so also require the same
+	// file type and ctime. The Lstat -> remove window below is not atomic;
+	// this narrows it, it cannot close it.
+	if now.Mode().Type() != expect.Mode().Type() {
+		return fmt.Errorf("trash: %s changed type since it was checked; refusing to delete", path)
+	}
+	nc, ok1 := ctimeOf(now)
+	ec, ok2 := ctimeOf(expect)
+	if !ok1 || !ok2 || !nc.Equal(ec) {
+		return fmt.Errorf("trash: %s was modified since it was checked; refusing to delete", path)
 	}
 	if now.Mode()&os.ModeSymlink != 0 {
 		return os.Remove(path)
