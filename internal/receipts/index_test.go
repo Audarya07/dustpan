@@ -78,3 +78,18 @@ func TestResumedSessionClearsEnded(t *testing.T) {
 		t.Fatalf("got %+v", s)
 	}
 }
+
+func TestWeakCreatorsUnionsSessionsField(t *testing.T) {
+	ix := receipts.BuildIndex([]receipts.Receipt{
+		{Kind: receipts.KindWeakCreated, Path: "/tmp/d", IsDir: true, Sessions: []string{"s1", "s2"}},
+		{Kind: receipts.KindWeakCreated, Path: "/tmp/d/f", SessionID: "s2", Sessions: []string{"s3"}},
+		{Kind: receipts.KindWeakCreated, Path: "/tmp/other", Sessions: []string{"s9"}},
+	})
+	got := ix.WeakCreators("/tmp/d/f")
+	if len(got) != 3 || got[0] != "s1" || got[1] != "s2" || got[2] != "s3" {
+		t.Fatalf("got %v", got)
+	}
+	if got := ix.WeakCreators("/tmp/d2"); len(got) != 0 {
+		t.Fatalf("prefix must not match: %v", got)
+	}
+}

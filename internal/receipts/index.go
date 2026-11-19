@@ -15,12 +15,12 @@ type Session struct {
 type Index struct {
 	sessions map[string]Session
 	strong   []Receipt
-	weak     map[string][]string
+	weak     []Receipt
 }
 
 // BuildIndex folds receipts (in file order) into lookup structures.
 func BuildIndex(rs []Receipt) *Index {
-	ix := &Index{sessions: map[string]Session{}, weak: map[string][]string{}}
+	ix := &Index{sessions: map[string]Session{}}
 	for _, r := range rs {
 		switch r.Kind {
 		case KindSessionStart, KindSessionEnd:
@@ -53,10 +53,7 @@ func BuildIndex(rs []Receipt) *Index {
 		case KindCreated:
 			ix.strong = append(ix.strong, r)
 		case KindWeakCreated:
-			ids := ix.weak[r.Path]
-			if !contains(ids, r.SessionID) {
-				ix.weak[r.Path] = append(ids, r.SessionID)
-			}
+			ix.weak = append(ix.weak, r)
 		}
 	}
 	return ix
@@ -85,7 +82,25 @@ func (ix *Index) StrongCreator(path string) (Receipt, bool) {
 	return Receipt{}, false
 }
 
-func (ix *Index) WeakCreators(path string) []string { return ix.weak[path] }
+// WeakCreators returns the de-duplicated session IDs (SessionID plus Sessions)
+// of weak receipts whose path equals path or is a directory ancestor of it.
+func (ix *Index) WeakCreators(path string) []string {
+	var out []string
+	add := func(id string) {
+		if id != "" && !contains(out, id) {
+			out = append(out, id)
+		}
+	}
+	for _, r := range ix.weak {
+		if r.Path == path || (r.IsDir && Within(path, r.Path)) {
+			add(r.SessionID)
+			for _, id := range r.Sessions {
+				add(id)
+			}
+		}
+	}
+	return out
+}
 
 // Cwds returns the distinct, sorted session working directories.
 func (ix *Index) Cwds() []string {
