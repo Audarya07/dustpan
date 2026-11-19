@@ -1,0 +1,105 @@
+package scan
+
+import (
+	"context"
+	"os"
+	"sort"
+	"time"
+
+	"github.com/Audarya07/agent-receipts/internal/item"
+	"github.com/Audarya07/agent-receipts/internal/receipts"
+	"github.com/Audarya07/agent-receipts/internal/safety"
+)
+
+// receiptClockSlack is how far a path's mtime may predate the receipt that
+// supposedly created it before the receipt stops counting as strong evidence.
+const receiptClockSlack = 2 * time.Minute
+
+// CollectScratch returns the receipted agent scratch under the temp folders
+// as unevaluated items. Run is the full pipeline.
+func CollectScratch(ctx context.Context, c Context) []item.Item {
+	return itemsOf(collectScratchCandidates(ctx, c, &runState{}))
+}
+
+func collectScratchCandidates(ctx context.Context, c Context, st *runState) []candidate {
+	if c.Index == nil {
+		return nil
+	}
+	e := c.Env
+	var tmps []string
+	for _, d := range e.TmpDirs {
+		tmps = append(tmps, e.Canon(d))
+	}
+	// Latest receipt per canonical path, dropping anything that must never be
+	// touched BEFORE nesting is considered: a receipt for "/tmp" itself must
+	// not absorb (and hide) the real scratch inside it.
+	latest := map[string]receipts.Receipt{}
+	for _, r := range CanonReceipts(e, c.Index.CreatedUnder(tmps)) {
+		if r.Path == "" {
+			continue
+		}
+		if never, _ := safety.NeverTouch(r.Path, e, st.mainCheckouts, c.Config.ExtraNeverTouch); never {
+			continue
+		}
+		if _, err := os.Lstat(r.Path); err != nil {
+			continue
+		}
+		latest[r.Path] = r
+	}
+	paths := make([]string, 0, len(latest))
+	for p := range latest {
+		paths = append(paths, p)
+	}
+	sort.Strings(paths)
+	var out []candidate
+	for _, p := range paths {
+		if ctx.Err() != nil {
+			break
+		}
+		nested := false
+		for _, q := range paths {
+			if q != p && latest[q].IsDir && receipts.Within(p, q) {
+				nested = true
+				break
+			}
+		}
+		if nested {
+			continue
+		}
+		r := latest[p]
+		out = append(out, candidate{it: item.Item{
+			Category: item.Scratch, Path: p, Evidence: scratchEvidence(c, r),
+		}})
+	}
+	return out
+}
+
+// scratchEvidence turns a receipt into evidence. A path that is older than
+// the command that supposedly created it was already there: weak at best.
+func scratchEvidence(c Context, r receipts.Receipt) item.Evidence {
+	ev := item.Evidence{
+		Strong: true, Source: r.Source,
+		SessionID: r.SessionID, Agent: r.Agent, SessionName: r.SessionName,
+	}
+	if ev.Source == "" || ev.Source == "hook" {
+		ev.Source = "receipt"
+	}
+	if s, ok := c.Index.Sessions()[r.SessionID]; ok {
+		if ev.Agent == "" {
+			ev.Agent = s.Agent
+		}
+		if ev.SessionName == "" {
+			ev.SessionName = s.Name
+		}
+	}
+	if fi, err := os.Lstat(r.Path); err == nil && !r.At.IsZero() &&
+		fi.ModTime().Before(r.At.Add(-receiptClockSlack)) {
+		ev.Strong = false
+		if r.SessionID != "" {
+			ev.Weak = []string{r.SessionID}
+		} else {
+			ev.Weak = []string{"unknown"}
+		}
+	}
+	return ev
+}

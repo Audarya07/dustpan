@@ -67,11 +67,13 @@ func (s *runState) addMain(path string) {
 	}
 }
 
-// collector proposes candidates. Task 10 adds jobs, scratch and transcripts
-// to this list.
+// collector proposes candidates. Scratch runs after worktrees so it knows the
+// main checkouts.
 type collector func(ctx context.Context, c Context, st *runState) []candidate
 
-var collectors = []collector{collectWorktreeCandidates}
+var collectors = []collector{
+	collectWorktreeCandidates, collectJobCandidates, collectScratchCandidates, collectTranscriptCandidates,
+}
 
 // Run collects, evaluates and enriches every item.
 func Run(ctx context.Context, c Context) (Result, error) {
@@ -228,6 +230,8 @@ func Recheck(ctx context.Context, c Context, it item.Item) (item.Item, error) {
 	switch it.Category {
 	case item.Worktree:
 		cand, err = recheckWorktree(c, st, it)
+	case item.Job, item.Scratch, item.Transcript:
+		cand, err = recheckByCollecting(ctx, c, st, it)
 	default:
 		return item.Item{}, fmt.Errorf("recheck %s: unsupported category %q", it.Path, it.Category)
 	}
@@ -236,6 +240,29 @@ func Recheck(ctx context.Context, c Context, it item.Item) (item.Item, error) {
 	}
 	fresh, _ := finish(ctx, c, st, SessionAliveFunc(c), cand)
 	return fresh, nil
+}
+
+// recheckByCollecting re-runs the item's category collector and picks out the
+// one path. Not being proposed any more (deleted, resumed, changed) counts as
+// gone.
+func recheckByCollecting(ctx context.Context, c Context, st *runState, it item.Item) (candidate, error) {
+	var col collector
+	switch it.Category {
+	case item.Job:
+		col = collectJobCandidates
+	case item.Scratch:
+		discoverRepos(ctx, c, st) // fills st.mainCheckouts for the never-touch rules
+		col = collectScratchCandidates
+	default:
+		col = collectTranscriptCandidates
+	}
+	path := c.Env.Canon(it.Path)
+	for _, cand := range col(ctx, c, st) {
+		if c.Env.Canon(cand.it.Path) == path {
+			return cand, nil
+		}
+	}
+	return candidate{}, fmt.Errorf("%s %s: %w", it.Category, it.Path, os.ErrNotExist)
 }
 
 // SessionAliveFunc returns a function reporting whether a session still looks

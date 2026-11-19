@@ -23,6 +23,7 @@ type fixture struct {
 	t         *testing.T
 	home, tmp string
 	repo      string
+	now       time.Time // the scan clock: fixtures are "3 days old"
 }
 
 func run(t *testing.T, dir string, args ...string) {
@@ -41,7 +42,8 @@ func newFixtureHome(t *testing.T) *fixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	h := &fixture{t: t, home: filepath.Join(root, "home"), tmp: filepath.Join(root, "tmp")}
+	h := &fixture{t: t, home: filepath.Join(root, "home"), tmp: filepath.Join(root, "tmp"),
+		now: time.Now().Add(72 * time.Hour)}
 	h.repo = filepath.Join(h.home, "repo")
 	origin := filepath.Join(root, "origin.git")
 	for _, d := range []string{h.repo, h.tmp, origin} {
@@ -92,7 +94,7 @@ func (h *fixture) index(rs ...receipts.Receipt) *receipts.Index {
 }
 
 func (h *fixture) context(ix *receipts.Index) scan.Context {
-	now := time.Now().Add(72 * time.Hour) // fixtures are "3 days old"
+	now := h.now
 	return scan.Context{
 		Env: env.Env{Home: h.home, StateDir: filepath.Join(h.home, "state"), TmpDirs: []string{h.tmp},
 			Now: func() time.Time { return now }},
@@ -130,6 +132,15 @@ func wantItem(t *testing.T, res scan.Result, path string, class item.Class) item
 	}
 	if it.Decision.Class != class {
 		t.Fatalf("%s class = %s (%v), want %s", path, it.Decision.Class, it.Decision.Reasons, class)
+	}
+	return it
+}
+
+func wantDead(t *testing.T, res scan.Result, path, reason string) item.Item {
+	t.Helper()
+	it := wantItem(t, res, path, item.Offer)
+	if it.DeadReason != reason {
+		t.Fatalf("%s DeadReason = %q, want %q", path, it.DeadReason, reason)
 	}
 	return it
 }

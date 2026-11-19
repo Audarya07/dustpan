@@ -1,0 +1,98 @@
+package scan_test
+
+import (
+	"os"
+	"path/filepath"
+	"testing"
+	"time"
+
+	"github.com/Audarya07/agent-receipts/internal/item"
+	"github.com/Audarya07/agent-receipts/internal/receipts"
+)
+
+func (h *fixture) mkdir(p string) string {
+	h.t.Helper()
+	if err := os.MkdirAll(p, 0o755); err != nil {
+		h.t.Fatal(err)
+	}
+	return p
+}
+
+func created(path string, isDir bool, session string) receipts.Receipt {
+	return receipts.Receipt{Kind: receipts.KindCreated, Path: path, IsDir: isDir, SessionID: session,
+		Source: "hook", At: time.Now()}
+}
+
+func TestScratchCollectorOnlyReceipted(t *testing.T) {
+	h := newFixtureHome(t)
+	h.write(h.tmp, "my-bin", "x")
+	h.write(h.tmp, "notes.txt", "x")
+	snap := h.mkdir(h.tmpPath("imgs-snap"))
+	h.write(snap, "a.png", "x")
+	ix := h.index(
+		created(h.tmpPath("my-bin"), false, "s1"),
+		created(snap, true, "s1"),
+		created(filepath.Join(snap, "a.png"), false, "s1"),
+		created(h.tmpPath("gone"), false, "s1"), // never made it to disk
+	)
+	res := mustRun(t, h.context(ix))
+	gs := wantItem(t, res, h.tmpPath("my-bin"), item.Offer)
+	if gs.Evidence.Source != "receipt" || gs.Evidence.SessionID != "s1" || !gs.Evidence.Strong {
+		t.Fatalf("evidence: %+v", gs.Evidence)
+	}
+	wantItem(t, res, snap, item.Offer)
+	wantNoItem(t, res, filepath.Join(snap, "a.png"))
+	wantNoItem(t, res, h.tmpPath("notes.txt"))
+	wantNoItem(t, res, h.tmpPath("gone"))
+	if n := len(res.Items); n != 2 {
+		t.Fatalf("items = %d, want 2: %+v", n, res.Items)
+	}
+}
+
+func TestScratchNeverTouchReceiptsDoNotAbsorbRealScratch(t *testing.T) {
+	h := newFixtureHome(t)
+	h.write(h.tmp, "my-bin", "x")
+	rt := h.mkdir(h.tmpPath("claude-501"))
+	h.write(rt, "x", "x")
+	ix := h.index(
+		created(h.tmp, true, "s1"), // mkdir -p /tmp
+		created(rt, true, "s1"),
+		created(filepath.Join(rt, "x"), false, "s1"),
+		created(h.tmpPath("my-bin"), false, "s1"),
+	)
+	res := mustRun(t, h.context(ix))
+	wantItem(t, res, h.tmpPath("my-bin"), item.Offer)
+	for _, p := range []string{h.tmp, rt, filepath.Join(rt, "x")} {
+		wantNoItem(t, res, p)
+	}
+}
+
+func TestScratchReceiptOlderThanPathIsNotOfferable(t *testing.T) {
+	h := newFixtureHome(t)
+	old := h.tmpPath("old-file")
+	h.write(h.tmp, "old-file", "x")
+	at := time.Now()
+	if err := os.Chtimes(old, at.Add(-time.Hour), at.Add(-time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	r := created(old, false, "s1")
+	r.At = at
+	res := mustRun(t, h.context(h.index(r)))
+	it := wantItem(t, res, old, item.LeftAlone)
+	if it.Evidence.Strong || len(it.Evidence.Weak) == 0 || !it.Decision.DetailsOnly {
+		t.Fatalf("want weak details-only, got %+v %+v", it.Evidence, it.Decision)
+	}
+	// Within the 2 minute slack it stays strong.
+	if err := os.Chtimes(old, at.Add(-time.Minute), at.Add(-time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	wantItem(t, mustRun(t, h.context(h.index(r))), old, item.Offer)
+}
+
+func TestScratchLiveSessionKeepsItsFiles(t *testing.T) {
+	h := newFixtureHome(t)
+	h.write(h.tmp, "f", "x")
+	h.job("j", `{"state":"working","sessionId":"live","updatedAt":"`+h.now.Add(-time.Hour).Format(time.RFC3339)+`"}`)
+	res := mustRun(t, h.context(h.index(created(h.tmpPath("f"), false, "live"))))
+	wantItem(t, res, h.tmpPath("f"), item.LeftAlone)
+}
