@@ -5,6 +5,8 @@ package safety
 import (
 	"fmt"
 	"path/filepath"
+	"runtime"
+	"strings"
 	"time"
 
 	"github.com/Audarya07/agent-receipts/internal/env"
@@ -37,11 +39,29 @@ func variants(e env.Env, p string) []string {
 	if p == "" {
 		return nil
 	}
-	out := []string{filepath.Clean(p)}
-	if c := e.Canon(p); c != out[0] {
+	out := []string{fold(filepath.Clean(p))}
+	if c := fold(e.Canon(p)); c != out[0] {
 		out = append(out, c)
 	}
 	return out
+}
+
+// fold lowercases paths on macOS, whose default filesystem is case-insensitive.
+// Folding only adds matches, so it fails closed. Every comparison in NeverTouch
+// goes through variants, so paths and roots are always folded alike.
+func fold(p string) string {
+	if runtime.GOOS == "darwin" {
+		return strings.ToLower(p)
+	}
+	return p
+}
+
+// agentContainers are agent-owned folders under home: each one and every
+// ancestor is never-touch; entries strictly inside are judged by other rules.
+var agentContainers = []string{
+	".claude", ".codex", ".cursor",
+	".claude/jobs", ".claude/projects",
+	".codex/worktrees", ".codex/sessions", ".cursor/worktrees",
 }
 
 // NeverTouch reports whether path must never be offered, and why.
@@ -66,6 +86,14 @@ func NeverTouch(path string, e env.Env, mainCheckouts, extra []string) (bool, st
 			}
 			if filepath.Dir(p) == h && filepath.Base(p)[0] == '.' {
 				return true, "a dotfile in your home folder"
+			}
+			for _, c := range agentContainers {
+				if receipts.Within(filepath.Join(h, c), p) {
+					return true, "an agent data folder"
+				}
+			}
+			if filepath.Dir(p) == filepath.Join(h, ".claude", "projects") {
+				return true, "an agent project folder (holds memory)"
 			}
 		}
 		// Tmp roots (and anything above them).
@@ -114,7 +142,7 @@ func NeverTouch(path string, e env.Env, mainCheckouts, extra []string) (bool, st
 		}
 		for _, x := range extra {
 			for _, xv := range variants(e, x) {
-				if receipts.Within(p, xv) {
+				if receipts.Within(p, xv) || receipts.Within(xv, p) {
 					return true, "on your never-touch list"
 				}
 			}
@@ -130,7 +158,7 @@ func configFile(p string, e env.Env) string {
 	base := filepath.Base(p)
 	parent := filepath.Base(filepath.Dir(p))
 	switch {
-	case base == "CLAUDE.md":
+	case strings.EqualFold(base, "CLAUDE.md"):
 		return "agent instructions (CLAUDE.md)"
 	case base == "mcp.json":
 		return "agent MCP config"
@@ -190,8 +218,12 @@ func Evaluate(in Inputs) item.Decision {
 		}
 	}
 	if it.Unregister && it.Category == item.Worktree {
-		// Directory already gone: nothing on disk to lose, the branch remains.
-		return item.Decision{Class: item.Offer, Permanent: noTrash(in)}
+		if in.Git != nil && in.Git.Locked {
+			return keep("worktree is locked")
+		}
+		// Directory already gone: nothing on disk to lose, the branch remains,
+		// and nothing is moved or deleted, so Permanent stays false.
+		return item.Decision{Class: item.Offer}
 	}
 	if it.Newest.IsZero() {
 		return keep("couldn't tell when it last changed")

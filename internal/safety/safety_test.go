@@ -3,6 +3,7 @@ package safety_test
 import (
 	"errors"
 	"os"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -179,4 +180,57 @@ func mkdirSymlink(real, link string) error {
 		return err
 	}
 	return os.Symlink(real, link)
+}
+
+func TestExtraAncestorNeverTouch(t *testing.T) {
+	e := env.Env{Home: "/Users/u"}
+	if ok, _ := safety.NeverTouch("/Users/u/keep", e, nil, []string{"/Users/u/keep/sub"}); !ok {
+		t.Error("ancestor of an extra must be never-touch")
+	}
+}
+
+func TestNeverTouchCaseVariantsDarwin(t *testing.T) {
+	if runtime.GOOS != "darwin" {
+		t.Skip("case-insensitive filesystems only")
+	}
+	e := env.Env{Home: "/Users/u", TmpDirs: []string{"/private/tmp"}}
+	for _, p := range []string{"/users/u", "/USERS/u/.zshrc", "/PRIVATE/TMP", "/private/TMP/claude-501", "/Users/u/Repo/src"} {
+		if ok, _ := safety.NeverTouch(p, e, []string{"/Users/u/repo"}, nil); !ok {
+			t.Errorf("%s should be never-touch", p)
+		}
+	}
+}
+
+func TestAgentContainers(t *testing.T) {
+	e := env.Env{Home: "/Users/u"}
+	for _, p := range []string{"/Users/u/.claude", "/Users/u/.codex", "/Users/u/.cursor", "/Users/u/.claude/jobs",
+		"/Users/u/.claude/projects", "/Users/u/.claude/projects/p", "/Users/u/.codex/worktrees",
+		"/Users/u/.codex/sessions", "/Users/u/.cursor/worktrees"} {
+		if ok, _ := safety.NeverTouch(p, e, nil, nil); !ok {
+			t.Errorf("%s should be never-touch", p)
+		}
+	}
+	for _, p := range []string{"/Users/u/.claude/jobs/old", "/Users/u/.claude/projects/p/s.jsonl",
+		"/Users/u/.codex/worktrees/a", "/Users/u/.codex/sessions/2026/x.jsonl", "/Users/u/.cursor/worktrees/a"} {
+		if ok, why := safety.NeverTouch(p, e, nil, nil); ok {
+			t.Errorf("%s wrongly never-touch: %s", p, why)
+		}
+	}
+}
+
+func TestUnregisterLockedAndNotPermanent(t *testing.T) {
+	in := with(offerableInputs(t), func(i *safety.Inputs) {
+		i.Item.Unregister = true
+		i.Git = &gitwt.State{Locked: true}
+	})
+	wantReason(t, in, item.LeftAlone, "locked")
+	in = with(in, func(i *safety.Inputs) {
+		i.Git = nil
+		i.TrashAvailable = func(string) bool { return false }
+	})
+	d := safety.Evaluate(in)
+	wantClass(t, d, item.Offer)
+	if d.Permanent {
+		t.Fatal("unregister must not be permanent")
+	}
 }
