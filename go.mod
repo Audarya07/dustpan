@@ -3,6 +3,7 @@ module github.com/Audarya07/agent-receipts
 go 1.24
 
 require (
+	github.com/pelletier/go-toml/v2 v2.2.3
 	github.com/zricethezav/gitleaks/v8 v8.29.1
 	golang.org/x/sys v0.33.0
 	mvdan.cc/sh/v3 v3.12.0
@@ -48,7 +49,6 @@ require (
 	github.com/muesli/reflow v0.2.1-0.20210115123740-9e1d0d53df68 // indirect
 	github.com/muesli/termenv v0.15.1 // indirect
 	github.com/nwaples/rardecode/v2 v2.1.0 // indirect
-	github.com/pelletier/go-toml/v2 v2.2.3 // indirect
 	github.com/pierrec/lz4/v4 v4.1.21 // indirect
 	github.com/rivo/uniseg v0.2.0 // indirect
 	github.com/rs/zerolog v1.33.0 // indirect

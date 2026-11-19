@@ -423,3 +423,20 @@ func Remove(repo, path string) error {
 	_, err := git(repo, "worktree", "remove", path)
 	return err
 }
+
+// TrackedFiles returns the set of files git tracks in the worktree at path,
+// as slash-separated paths relative to it. It uses the same sanitized git
+// environment as the rest of the package.
+func TrackedFiles(path string) (map[string]bool, error) {
+	out, err := git(path, "ls-files", "-z")
+	if err != nil {
+		return nil, err
+	}
+	set := map[string]bool{}
+	for _, f := range strings.Split(out, "\x00") {
+		if f != "" {
+			set[f] = true
+		}
+	}
+	return set, nil
+}
