@@ -161,13 +161,12 @@ func collectWorktreeCandidates(ctx context.Context, c Context, st *runState) []c
 }
 
 // evidenceFor decides how we know an agent made the worktree at path.
-func evidenceFor(c Context, folders []string, path, rawPath string) (item.Evidence, bool) {
+func evidenceFor(c Context, folders []string, path string) (item.Evidence, bool) {
 	var ev item.Evidence
 	if c.Index != nil {
-		rec, ok := c.Index.StrongCreator(path)
-		if !ok && rawPath != path {
-			rec, ok = c.Index.StrongCreator(rawPath)
-		}
+		// Exact-path receipts only: an ancestor's mkdir must never make a
+		// hand-made worktree beneath it look agent-made.
+		rec, ok := c.Index.CreatorExact(path)
 		if ok {
 			ev.Strong, ev.Source = true, rec.Source
 			if ev.Source == "" || ev.Source == "hook" {
@@ -183,7 +182,7 @@ func evidenceFor(c Context, folders []string, path, rawPath string) (item.Eviden
 				}
 			}
 		}
-		ev.Weak = c.Index.WeakCreators(path)
+		ev.Weak = c.Index.WeakCreatorsExact(path)
 	}
 	for _, f := range folders {
 		if path != f && receipts.Within(path, f) {
@@ -202,7 +201,7 @@ func evidenceFor(c Context, folders []string, path, rawPath string) (item.Eviden
 // reports false when nothing ties it to an agent.
 func worktreeCandidate(c Context, folders []string, repo string, wt gitwt.Worktree, base string) (candidate, bool) {
 	path := c.Env.Canon(wt.Path)
-	ev, ok := evidenceFor(c, folders, path, filepath.Clean(wt.Path))
+	ev, ok := evidenceFor(c, folders, path)
 	if !ok {
 		return candidate{}, false
 	}

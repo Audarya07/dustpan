@@ -93,3 +93,22 @@ func TestWeakCreatorsUnionsSessionsField(t *testing.T) {
 		t.Fatalf("prefix must not match: %v", got)
 	}
 }
+
+func TestExactLookupsIgnoreAncestors(t *testing.T) {
+	ix := receipts.BuildIndex([]receipts.Receipt{
+		{Kind: receipts.KindCreated, Path: "/a/wts", IsDir: true, SessionID: "s1"},
+		{Kind: receipts.KindWeakCreated, Path: "/b/wts", IsDir: true, SessionID: "s2"},
+	})
+	if _, ok := ix.CreatorExact("/a/wts/mine"); ok {
+		t.Fatal("ancestor must not match")
+	}
+	if r, ok := ix.CreatorExact("/a/wts"); !ok || r.SessionID != "s1" {
+		t.Fatal("exact should match")
+	}
+	if got := ix.WeakCreatorsExact("/b/wts/mine"); len(got) != 0 {
+		t.Fatalf("weak ancestor matched: %v", got)
+	}
+	if got := ix.WeakCreatorsExact("/b/wts"); len(got) != 1 {
+		t.Fatalf("weak exact: %v", got)
+	}
+}

@@ -86,6 +86,11 @@ func (h *fixture) write(dir, name, content string) {
 	}
 }
 
+func (h *fixture) index(rs ...receipts.Receipt) *receipts.Index {
+	e := env.Env{Home: h.home}
+	return receipts.BuildIndex(scan.CanonReceipts(e, rs))
+}
+
 func (h *fixture) context(ix *receipts.Index) scan.Context {
 	now := time.Now().Add(72 * time.Hour) // fixtures are "3 days old"
 	return scan.Context{
@@ -143,8 +148,8 @@ func TestWorktreeCollector(t *testing.T) {
 	handWT := h.addWorktree("handmade")
 	dirtyWT := h.addWorktree("repo/.claude/worktrees/dirty")
 	h.write(dirtyWT, "wip.txt", "x")
-	ix := receipts.BuildIndex([]receipts.Receipt{{Kind: receipts.KindCreated, Path: tmpWT, IsDir: true,
-		Via: "git worktree add", SessionID: "s1", Source: "hook"}})
+	ix := h.index(receipts.Receipt{Kind: receipts.KindCreated, Path: tmpWT, IsDir: true,
+		Via: "git worktree add", SessionID: "s1", Source: "hook"})
 
 	res := mustRun(t, h.context(ix))
 
@@ -187,9 +192,7 @@ func TestRunningProcessKeepsWorktree(t *testing.T) {
 func TestSessionAliveSignals(t *testing.T) {
 	h := newFixtureHome(t)
 	wt := h.addWorktree("repo/.claude/worktrees/s")
-	ix := receipts.BuildIndex([]receipts.Receipt{
-		{Kind: receipts.KindCreated, Path: wt, IsDir: true, SessionID: "live"},
-	})
+	ix := h.index(receipts.Receipt{Kind: receipts.KindCreated, Path: wt, IsDir: true, SessionID: "live"})
 	c := h.context(ix)
 	now := c.Env.Now()
 
@@ -288,5 +291,43 @@ func TestMeasureDoesNotFollowSymlinks(t *testing.T) {
 	size, newest := scan.Measure(dir)
 	if size != 10 || newest.IsZero() {
 		t.Fatalf("size=%d newest=%v", size, newest)
+	}
+}
+
+func TestAncestorReceiptsDoNotMakeHandmadeWorktreesOfferable(t *testing.T) {
+	h := newFixtureHome(t)
+	mine := h.addWorktree("wts/mine")
+	for _, kind := range []receipts.Kind{receipts.KindCreated, receipts.KindWeakCreated} {
+		ix := h.index(receipts.Receipt{Kind: kind, Path: filepath.Join(h.home, "wts"), IsDir: true, SessionID: "s1"})
+		wantNoItem(t, mustRun(t, h.context(ix)), mine)
+	}
+}
+
+func TestReceiptWithSymlinkedPathStillMatches(t *testing.T) {
+	h := newFixtureHome(t)
+	wt := h.addWorktree(h.tmpPath("at-sym"))
+	link := filepath.Join(filepath.Dir(h.tmp), "tmplink")
+	if err := os.Symlink(h.tmp, link); err != nil {
+		t.Fatal(err)
+	}
+	ix := h.index(receipts.Receipt{Kind: receipts.KindCreated, Path: filepath.Join(link, "at-sym"), IsDir: true, SessionID: "s1"})
+	wantItem(t, mustRun(t, h.context(ix)), wt, item.Offer)
+}
+
+func TestMeasureUnreadableDirGivesUnknownNewest(t *testing.T) {
+	dir := t.TempDir()
+	sub := filepath.Join(dir, "sub")
+	if err := os.Mkdir(sub, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(sub, "f"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(sub, 0); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(sub, 0o755) })
+	if _, newest := scan.Measure(dir); !newest.IsZero() {
+		t.Fatalf("newest = %v, want zero on walk error", newest)
 	}
 }

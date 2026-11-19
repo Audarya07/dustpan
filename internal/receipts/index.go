@@ -129,3 +129,34 @@ func (ix *Index) CreatedUnder(dirs []string) []Receipt {
 	}
 	return out
 }
+
+// CreatorExact returns the latest strong receipt whose Path is exactly path.
+// Unlike StrongCreator it never matches an ancestor directory receipt.
+func (ix *Index) CreatorExact(path string) (Receipt, bool) {
+	for i := len(ix.strong) - 1; i >= 0; i-- {
+		if ix.strong[i].Path == path {
+			return ix.strong[i], true
+		}
+	}
+	return Receipt{}, false
+}
+
+// WeakCreatorsExact is WeakCreators restricted to receipts whose Path is
+// exactly path.
+func (ix *Index) WeakCreatorsExact(path string) []string {
+	var out []string
+	add := func(id string) {
+		if id != "" && !contains(out, id) {
+			out = append(out, id)
+		}
+	}
+	for _, r := range ix.weak {
+		if r.Path == path {
+			add(r.SessionID)
+			for _, id := range r.Sessions {
+				add(id)
+			}
+		}
+	}
+	return out
+}

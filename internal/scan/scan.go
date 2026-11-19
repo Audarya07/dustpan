@@ -137,7 +137,10 @@ func finish(ctx context.Context, c Context, st *runState, alive func(string) (bo
 		}
 		found, partial, err := c.Secrets.Scan(ctx, it.Path, skip)
 		it.Secrets, it.SecretsPartial = found, partial
-		failed = err != nil
+		if err != nil {
+			failed = true
+			it.SecretsPartial = true
+		}
 	}
 	head := ""
 	if cand.git != nil {
@@ -166,8 +169,12 @@ func worktreeSkip(path string) func(string, fs.DirEntry) bool {
 // Measure returns the total size of regular files under path and the newest
 // modification time of anything in it, never following symlinks.
 func Measure(path string) (size int64, newest time.Time) {
+	walkFailed := false
 	_ = filepath.WalkDir(path, func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
+			if !(p == path && os.IsNotExist(err)) {
+				walkFailed = true
+			}
 			if d != nil && d.IsDir() {
 				return fs.SkipDir
 			}
@@ -175,6 +182,7 @@ func Measure(path string) (size int64, newest time.Time) {
 		}
 		info, err := os.Lstat(p)
 		if err != nil {
+			walkFailed = true
 			return nil
 		}
 		if info.ModTime().After(newest) {
@@ -185,7 +193,28 @@ func Measure(path string) (size int64, newest time.Time) {
 		}
 		return nil
 	})
+	if walkFailed {
+		// Partial data: report "unknown" so the 24 h rule keeps the item.
+		newest = time.Time{}
+	}
 	return size, newest
+}
+
+// CanonReceipts returns a copy of rs with Path and Cwd canonicalized, so
+// receipts written with symlinked paths (e.g. /tmp on macOS) still match
+// the canonical paths git and lsof report.
+func CanonReceipts(e env.Env, rs []receipts.Receipt) []receipts.Receipt {
+	out := make([]receipts.Receipt, len(rs))
+	for i, r := range rs {
+		if r.Path != "" {
+			r.Path = e.Canon(r.Path)
+		}
+		if r.Cwd != "" {
+			r.Cwd = e.Canon(r.Cwd)
+		}
+		out[i] = r
+	}
+	return out
 }
 
 // Recheck re-collects the single item at it.Path and returns it freshly
