@@ -39,9 +39,8 @@ func realpath(t *testing.T, p string) string {
 	return r
 }
 
-// newRepo creates a repo on branch main with one commit and a bare origin
-// that main has been pushed to. Returns the repo path.
-func newRepo(t *testing.T) string {
+// hermetic isolates git from the owner's config and environment.
+func hermetic(t *testing.T) {
 	t.Helper()
 	t.Setenv("GIT_CONFIG_GLOBAL", "/dev/null")
 	t.Setenv("GIT_CONFIG_SYSTEM", "/dev/null")
@@ -49,6 +48,13 @@ func newRepo(t *testing.T) string {
 	t.Setenv("GIT_AUTHOR_EMAIL", "test@example.com")
 	t.Setenv("GIT_COMMITTER_NAME", "Test")
 	t.Setenv("GIT_COMMITTER_EMAIL", "test@example.com")
+}
+
+// newRepo creates a repo on branch main with one commit and a bare origin
+// that main has been pushed to. Returns the repo path.
+func newRepo(t *testing.T) string {
+	t.Helper()
+	hermetic(t)
 	root := realpath(t, t.TempDir())
 	origin := filepath.Join(root, "origin.git")
 	repo := filepath.Join(root, "repo")
@@ -420,6 +426,7 @@ func TestRemoveRefusesDirtyWorktree(t *testing.T) {
 }
 
 func TestFindReposSkipsSymlinksAndNodeModules(t *testing.T) {
+	hermetic(t)
 	outside := realpath(t, t.TempDir())
 	run(t, outside, "init")
 	root := realpath(t, t.TempDir())
@@ -448,5 +455,100 @@ func TestFindReposSkipsSymlinksAndNodeModules(t *testing.T) {
 	want = []string{root, filepath.Join(root, "a"), filepath.Join(root, "deep/er/b"), filepath.Join(root, "deep/er/c")}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("FindRepos depth 3 = %v, want %v", got, want)
+	}
+}
+
+func TestInspectAssumeUnchangedEditIsUnsaved(t *testing.T) {
+	repo := newRepo(t)
+	wt := addWT(t, repo, "feat")
+	run(t, wt.Path, "update-index", "--assume-unchanged", "a.txt")
+	write(t, filepath.Join(wt.Path, "a.txt"), "edited\n")
+	st, err := Inspect(wt, "main")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(st.HiddenFromStatus, []string{"a.txt"}) || len(st.Unsaved()) == 0 {
+		t.Fatalf("state %+v", st)
+	}
+}
+
+func TestInspectSkipWorktreeEditIsUnsaved(t *testing.T) {
+	repo := newRepo(t)
+	wt := addWT(t, repo, "feat")
+	run(t, wt.Path, "update-index", "--skip-worktree", "a.txt")
+	write(t, filepath.Join(wt.Path, "a.txt"), "edited\n")
+	st, err := Inspect(wt, "main")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(st.HiddenFromStatus, []string{"a.txt"}) || len(st.Unsaved()) == 0 {
+		t.Fatalf("state %+v", st)
+	}
+	// Absent from disk but sparse checkout NOT enabled: still unsaved.
+	if err := os.Remove(filepath.Join(wt.Path, "a.txt")); err != nil {
+		t.Fatal(err)
+	}
+	st, err = Inspect(wt, "main")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(st.HiddenFromStatus) != 1 {
+		t.Fatalf("non-sparse absent skip-worktree must be flagged: %+v", st)
+	}
+}
+
+func TestInspectSparseAbsentSkipWorktreeExempt(t *testing.T) {
+	repo := newRepo(t)
+	wt := addWT(t, repo, "feat")
+	run(t, wt.Path, "config", "core.sparseCheckout", "true")
+	run(t, wt.Path, "update-index", "--skip-worktree", "a.txt")
+	if err := os.Remove(filepath.Join(wt.Path, "a.txt")); err != nil {
+		t.Fatal(err)
+	}
+	st, err := Inspect(wt, "main")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(st.HiddenFromStatus) != 0 || len(st.Unsaved()) != 0 {
+		t.Fatalf("want exempt: %+v %v", st, st.Unsaved())
+	}
+	// Reappearing on disk makes git clear the bit and status shows it as modified.
+	write(t, filepath.Join(wt.Path, "a.txt"), "edited\n")
+	st, err = Inspect(wt, "main")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(st.Unsaved()) == 0 {
+		t.Fatalf("edited file must be unsaved: %+v", st)
+	}
+}
+
+func TestInspectIgnoresInheritedGitEnv(t *testing.T) {
+	repo := newRepo(t)
+	wt := addWT(t, repo, "feat")
+	write(t, filepath.Join(wt.Path, "wip.txt"), "x")
+	t.Setenv("GIT_DIR", filepath.Join(repo, ".git"))
+	t.Setenv("GIT_WORK_TREE", repo)
+	t.Setenv("GIT_INDEX_FILE", filepath.Join(repo, ".git", "index"))
+	st, err := Inspect(wt, "main")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(st.Untracked, []string{"wip.txt"}) {
+		t.Fatalf("Untracked = %v", st.Untracked)
+	}
+}
+
+func TestInspectShowUntrackedFilesNoConfig(t *testing.T) {
+	repo := newRepo(t)
+	run(t, repo, "config", "status.showUntrackedFiles", "no")
+	wt := addWT(t, repo, "feat")
+	write(t, filepath.Join(wt.Path, "wip.txt"), "x")
+	st, err := Inspect(wt, "main")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(st.Untracked, []string{"wip.txt"}) {
+		t.Fatalf("Untracked = %v", st.Untracked)
 	}
 }

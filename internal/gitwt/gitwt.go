@@ -28,16 +28,35 @@ var Regenerable = []string{"node_modules", "dist", "build", "target", ".venv", "
 type State struct {
 	HeadSHA, Base                       string
 	Uncommitted, Untracked, IgnoredKept []string
+	HiddenFromStatus                    []string // assume-unchanged / skip-worktree files
 	UnsavedCommits, CommitsBeyondBase   int
 	DetachedUnreachable                 bool
 	OpInProgress                        string
 	Locked                              bool
 }
 
+// gitEnv returns the inherited environment without GIT_* variables (GIT_DIR,
+// GIT_WORK_TREE, GIT_INDEX_FILE, ...) that would redirect git away from -C,
+// keeping only the config-isolation ones.
+func gitEnv() []string {
+	var env []string
+	for _, kv := range os.Environ() {
+		if strings.HasPrefix(kv, "GIT_") {
+			switch strings.SplitN(kv, "=", 2)[0] {
+			case "GIT_CONFIG_GLOBAL", "GIT_CONFIG_SYSTEM", "GIT_CONFIG_NOSYSTEM":
+			default:
+				continue
+			}
+		}
+		env = append(env, kv)
+	}
+	return env
+}
+
 // git runs git in dir. It never takes optional locks and uses the C locale.
 func git(dir string, args ...string) (string, error) {
 	cmd := exec.Command("git", append([]string{"-C", dir}, args...)...)
-	cmd.Env = append(os.Environ(), "GIT_OPTIONAL_LOCKS=0", "LC_ALL=C")
+	cmd.Env = append(gitEnv(), "GIT_OPTIONAL_LOCKS=0", "LC_ALL=C")
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr
 	if err := cmd.Run(); err != nil {
@@ -213,7 +232,7 @@ func Inspect(wt Worktree, base string) (State, error) {
 	}
 	st.HeadSHA = strings.TrimSpace(out)
 
-	out, err = git(dir, "status", "--porcelain=v1", "-z", "--ignored=matching")
+	out, err = git(dir, "status", "--porcelain=v1", "-z", "--ignored=matching", "--untracked-files=normal", "--ignore-submodules=none")
 	if err != nil {
 		return State{}, err
 	}
@@ -223,6 +242,12 @@ func Inspect(wt Worktree, base string) (State, error) {
 	sort.Strings(st.Uncommitted)
 	sort.Strings(st.Untracked)
 	sort.Strings(st.IgnoredKept)
+
+	hidden, err := hiddenFiles(dir)
+	if err != nil {
+		return State{}, err
+	}
+	st.HiddenFromStatus = hidden
 
 	// Commits not reachable from any remote ref or the base.
 	revArgs := []string{"rev-list", "HEAD", "--not", "--remotes"}
@@ -307,6 +332,51 @@ func Inspect(wt Worktree, base string) (State, error) {
 	return st, nil
 }
 
+// hiddenFiles lists tracked files git status cannot see changes in:
+// assume-unchanged (lowercase ls-files tag) and skip-worktree (tag S). A
+// skip-worktree file that is absent from disk in a sparse checkout is exempt.
+func hiddenFiles(dir string) ([]string, error) {
+	out, err := git(dir, "ls-files", "-v", "-z")
+	if err != nil {
+		return nil, err
+	}
+	sparse := false
+	var res []string
+	for _, e := range strings.Split(out, "\x00") {
+		if e == "" {
+			continue
+		}
+		if len(e) < 3 || e[1] != ' ' {
+			return nil, fmt.Errorf("unparseable git ls-files entry %q", e)
+		}
+		tag, path := e[0], e[2:]
+		switch {
+		case tag >= 'a' && tag <= 'z':
+		case tag == 'S':
+			if !sparse {
+				v, err := git(dir, "config", "--type=bool", "--get", "core.sparseCheckout")
+				var ee *exec.ExitError
+				if err != nil && !(errors.As(err, &ee) && ee.ExitCode() == 1) {
+					return nil, err
+				}
+				sparse = strings.TrimSpace(v) == "true"
+				if !sparse {
+					res = append(res, path)
+					continue
+				}
+			}
+			if _, err := os.Lstat(filepath.Join(dir, path)); os.IsNotExist(err) {
+				continue
+			}
+		default:
+			continue
+		}
+		res = append(res, path)
+	}
+	sort.Strings(res)
+	return res, nil
+}
+
 func plural(n int, one, many string) string {
 	if n == 1 {
 		return fmt.Sprintf("%d %s", n, one)
@@ -327,6 +397,9 @@ func (s State) Unsaved() []string {
 	if len(s.IgnoredKept) > 0 {
 		r = append(r, "ignored files that aren't build output: "+strings.Join(s.IgnoredKept, ", "))
 	}
+	if len(s.HiddenFromStatus) > 0 {
+		r = append(r, "files hidden from git status (assume-unchanged/skip-worktree): "+strings.Join(s.HiddenFromStatus, ", "))
+	}
 	if s.UnsavedCommits > 0 {
 		r = append(r, plural(s.UnsavedCommits, "commit", "commits")+" not pushed or merged")
 	}
@@ -342,8 +415,10 @@ func (s State) Unsaved() []string {
 	return r
 }
 
-// Remove unregisters and deletes a clean worktree. It never forces: git
-// refuses when the worktree has modified or untracked files.
+// Remove unregisters and deletes a worktree without --force. git only refuses
+// for modified or untracked files it can see; it does NOT refuse for ignored
+// files, assume-unchanged/skip-worktree edits, or untracked files hidden by
+// status.showUntrackedFiles=no. Callers must Inspect immediately before Remove.
 func Remove(repo, path string) error {
 	_, err := git(repo, "worktree", "remove", path)
 	return err
