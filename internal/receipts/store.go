@@ -53,17 +53,25 @@ func (s *Store) Append(rs ...Receipt) error {
 	if err := os.MkdirAll(s.dir, 0o700); err != nil {
 		return err
 	}
-	f, err := os.OpenFile(s.path(), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
+	f, err := os.OpenFile(s.path(), os.O_APPEND|os.O_CREATE|os.O_RDWR, 0o600)
 	if err != nil {
 		return err
 	}
+	// A crash can leave a truncated last line; start on a fresh line so it
+	// cannot swallow the next receipt. A racing blank line is harmless.
+	prefix := needsNewline(f)
 	for _, r := range rs {
 		b, err := json.Marshal(r)
 		if err != nil {
 			f.Close()
 			return err
 		}
-		if _, err := f.Write(append(b, '\n')); err != nil {
+		b = append(b, '\n')
+		if prefix {
+			b = append([]byte{'\n'}, b...)
+			prefix = false
+		}
+		if _, err := f.Write(b); err != nil {
 			f.Close()
 			return err
 		}
@@ -97,4 +105,16 @@ func (s *Store) Load() ([]Receipt, error) {
 		}
 	}
 	return out, nil
+}
+
+func needsNewline(f *os.File) bool {
+	fi, err := f.Stat()
+	if err != nil || fi.Size() == 0 {
+		return false
+	}
+	var last [1]byte
+	if _, err := f.ReadAt(last[:], fi.Size()-1); err != nil {
+		return false
+	}
+	return last[0] != '\n'
 }

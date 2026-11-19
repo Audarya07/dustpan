@@ -81,3 +81,16 @@ func TestConcurrentAppendsStayParseable(t *testing.T) {
 		t.Fatalf("got %d", len(rs))
 	}
 }
+
+func TestAppendAfterTruncatedLineKeepsNewReceipt(t *testing.T) {
+	dir := t.TempDir()
+	s := receipts.Open(dir)
+	must(t, s.Append(receipts.Receipt{Kind: receipts.KindCreated, Path: "/tmp/a", SessionID: "s1"}))
+	appendRaw(t, dir, `{"kind":"created","path":"/tmp/trunc"`) // crash: no trailing newline
+	must(t, s.Append(receipts.Receipt{Kind: receipts.KindCreated, Path: "/tmp/b", SessionID: "s2"}))
+	rs, err := s.Load()
+	must(t, err)
+	if len(rs) != 2 || rs[1].Path != "/tmp/b" {
+		t.Fatalf("got %+v", rs)
+	}
+}
