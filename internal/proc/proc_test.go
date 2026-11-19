@@ -112,3 +112,28 @@ func TestTakeCancelled(t *testing.T) {
 		t.Fatal("want error on cancelled context")
 	}
 }
+
+func TestAgentAncestorRealWorldComm(t *testing.T) {
+	cases := []struct {
+		comm, want string
+	}{
+		{"claude bg-spare", "claude"},
+		{"/Users/u/.local/share/claude/versions/2.1.327", "claude"},
+		{"/opt/homebrew/bin/codex", "codex"},
+		{"/usr/local/bin/cursor-agent", "cursor-agent"},
+		{"claudette", ""},
+		{"/usr/bin/zsh", ""},
+	}
+	for _, c := range cases {
+		procs, err := proc.ParsePS("9 1 Thu Nov 19 01:00:00 2026 " + c.comm + "\n10 9 Thu Nov 19 01:00:00 2026 /bin/sh\n")
+		must(t, err)
+		if procs[9].Comm != c.comm {
+			t.Fatalf("comm %q parsed as %q", c.comm, procs[9].Comm)
+		}
+		s := &proc.Snapshot{Procs: procs}
+		_, agent, ok := s.AgentAncestor(10)
+		if ok != (c.want != "") || agent != c.want {
+			t.Errorf("%q: got %q %v, want %q", c.comm, agent, ok, c.want)
+		}
+	}
+}

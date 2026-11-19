@@ -182,12 +182,15 @@ func (s *Snapshot) InUse(path string) (bool, string) {
 }
 
 func agentName(p Proc) string {
-	cands := []string{p.Comm}
-	if f := strings.Fields(p.Args); len(f) > 0 {
-		cands = append(cands, f[0])
-	}
-	for _, c := range cands {
-		b := filepath.Base(c)
+	for _, c := range []string{p.Comm, p.Args} {
+		if strings.Contains(c, "/claude/versions/") {
+			return "claude"
+		}
+		f := strings.Fields(c)
+		if len(f) == 0 {
+			continue
+		}
+		b := filepath.Base(f[0])
 		for _, a := range agents {
 			if b == a {
 				return a
