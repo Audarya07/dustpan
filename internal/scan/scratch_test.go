@@ -96,3 +96,33 @@ func TestScratchLiveSessionKeepsItsFiles(t *testing.T) {
 	res := mustRun(t, h.context(h.index(created(h.tmpPath("f"), false, "live"))))
 	wantItem(t, res, h.tmpPath("f"), item.LeftAlone)
 }
+
+func TestScratchSymlinkSwapNeverListsTarget(t *testing.T) {
+	h := newFixtureHome(t)
+	target := h.mkdir(filepath.Join(h.home, "Documents"))
+	h.write(target, "precious.txt", "x")
+	link := h.tmpPath("foo")
+	if err := os.Symlink(target, link); err != nil {
+		t.Fatal(err)
+	}
+	res := mustRun(t, h.context(h.index(created(link, true, "s1"))))
+	wantNoItem(t, res, target)
+	wantNoItem(t, res, filepath.Join(target, "precious.txt"))
+	it, ok := find(res, link)
+	if ok && it.Size != 0 {
+		t.Fatalf("link item measured its target: %+v", it)
+	}
+}
+
+func TestScratchMergedLiveSessionKeepsDir(t *testing.T) {
+	h := newFixtureHome(t)
+	dir := h.mkdir(h.tmpPath("work"))
+	h.write(dir, "f", "x")
+	h.job("j", `{"state":"working","sessionId":"live","updatedAt":"`+h.now.Add(-time.Hour).Format(time.RFC3339)+`"}`)
+	ix := h.index(created(dir, true, "dead"), created(filepath.Join(dir, "f"), false, "live"))
+	res := mustRun(t, h.context(ix))
+	it := wantItem(t, res, dir, item.LeftAlone)
+	if len(it.Evidence.Sessions) != 1 || it.Evidence.Sessions[0] != "live" {
+		t.Fatalf("sessions: %+v", it.Evidence)
+	}
+}

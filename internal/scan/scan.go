@@ -115,7 +115,13 @@ func Run(ctx context.Context, c Context) (Result, error) {
 // one candidate. The bool reports a secret scan that failed.
 func finish(ctx context.Context, c Context, st *runState, alive func(string) (bool, time.Time), cand candidate) (item.Item, bool) {
 	it := cand.it
-	it.Path = c.Env.Canon(it.Path)
+	if it.Category == item.Worktree {
+		it.Path = c.Env.Canon(it.Path)
+	} else {
+		// Never dereference the item itself: a symlink is measured and moved
+		// as the link, not its target.
+		it.Path = c.Env.CanonParent(it.Path)
+	}
 	if it.Repo != "" {
 		it.Repo = c.Env.Canon(it.Repo)
 	}
@@ -202,14 +208,15 @@ func Measure(path string) (size int64, newest time.Time) {
 	return size, newest
 }
 
-// CanonReceipts returns a copy of rs with Path and Cwd canonicalized, so
+// CanonReceipts returns a copy of rs with Path (parent resolved, the final
+// component left as written) and Cwd canonicalized, so
 // receipts written with symlinked paths (e.g. /tmp on macOS) still match
 // the canonical paths git and lsof report.
 func CanonReceipts(e env.Env, rs []receipts.Receipt) []receipts.Receipt {
 	out := make([]receipts.Receipt, len(rs))
 	for i, r := range rs {
 		if r.Path != "" {
-			r.Path = e.Canon(r.Path)
+			r.Path = e.CanonParent(r.Path)
 		}
 		if r.Cwd != "" {
 			r.Cwd = e.Canon(r.Cwd)

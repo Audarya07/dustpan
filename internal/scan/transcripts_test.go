@@ -70,3 +70,20 @@ func TestTranscriptOfLiveSessionIsLeftAlone(t *testing.T) {
 	h.job("j", `{"state":"working","sessionId":"live","updatedAt":"`+h.now.Add(-time.Hour).Format(time.RFC3339)+`"}`)
 	wantItem(t, mustRun(t, h.context(nil)), p, item.LeftAlone)
 }
+
+func TestTranscriptsSkipSymlinkedProjectDir(t *testing.T) {
+	h := newFixtureHome(t)
+	notes := h.mkdir(filepath.Join(h.home, "notes"))
+	h.write(notes, "data.jsonl", "{}")
+	h.age(filepath.Join(notes, "data.jsonl"), 60)
+	projects := h.mkdir(filepath.Join(h.home, ".claude", "projects"))
+	if err := os.Symlink(notes, filepath.Join(projects, "evil")); err != nil {
+		t.Fatal(err)
+	}
+	res := mustRun(t, h.context(nil))
+	wantNoItem(t, res, filepath.Join(notes, "data.jsonl"))
+	wantNoItem(t, res, filepath.Join(projects, "evil", "data.jsonl"))
+	if len(res.Items) != 0 {
+		t.Fatalf("items: %+v", res.Items)
+	}
+}

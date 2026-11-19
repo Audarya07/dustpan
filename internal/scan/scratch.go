@@ -38,6 +38,9 @@ func collectScratchCandidates(ctx context.Context, c Context, st *runState) []ca
 		if r.Path == "" {
 			continue
 		}
+		if !withinAny(r.Path, tmps) || containsPath(tmps, r.Path) {
+			continue
+		}
 		if never, _ := safety.NeverTouch(r.Path, e, st.mainCheckouts, c.Config.ExtraNeverTouch); never {
 			continue
 		}
@@ -67,8 +70,18 @@ func collectScratchCandidates(ctx context.Context, c Context, st *runState) []ca
 			continue
 		}
 		r := latest[p]
+		ev := scratchEvidence(c, r)
+		// Sessions of every receipt merged into this item count too: a live
+		// session that wrote inside keeps the whole folder.
+		for _, q := range paths {
+			if q != p && receipts.Within(q, p) {
+				if id := latest[q].SessionID; id != "" && id != ev.SessionID && !containsPath(ev.Sessions, id) {
+					ev.Sessions = append(ev.Sessions, id)
+				}
+			}
+		}
 		out = append(out, candidate{it: item.Item{
-			Category: item.Scratch, Path: p, Evidence: scratchEvidence(c, r),
+			Category: item.Scratch, Path: p, Evidence: ev,
 		}})
 	}
 	return out
@@ -102,4 +115,22 @@ func scratchEvidence(c Context, r receipts.Receipt) item.Evidence {
 		}
 	}
 	return ev
+}
+
+func withinAny(path string, dirs []string) bool {
+	for _, d := range dirs {
+		if receipts.Within(path, d) {
+			return true
+		}
+	}
+	return false
+}
+
+func containsPath(list []string, s string) bool {
+	for _, x := range list {
+		if x == s {
+			return true
+		}
+	}
+	return false
 }

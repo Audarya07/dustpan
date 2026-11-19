@@ -66,6 +66,20 @@ func (e Env) EnsureStateDir() error {
 	return os.MkdirAll(e.StateDir, 0o700)
 }
 
+// CanonParent canonicalizes the parent directory of path and appends the
+// final component unchanged, so the item itself is never dereferenced: a
+// symlink stays a symlink rather than becoming its target.
+func (e Env) CanonParent(path string) string {
+	p := filepath.Clean(path)
+	if abs, err := filepath.Abs(p); err == nil {
+		p = abs
+	}
+	if p == "/" {
+		return p
+	}
+	return filepath.Join(e.Canon(filepath.Dir(p)), filepath.Base(p))
+}
+
 // Canon returns the cleaned absolute path with symlinks resolved on its
 // longest existing ancestor; the non-existing remainder is appended
 // unchanged. It never fails: if nothing resolves it returns the cleaned path.

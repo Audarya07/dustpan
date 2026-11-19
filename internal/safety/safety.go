@@ -205,11 +205,16 @@ func Evaluate(in Inputs) item.Decision {
 	if used, why := in.Proc.InUse(it.Path); used {
 		return keep(why)
 	}
+	var ids []string
 	if ev.SessionID != "" {
-		if in.SessionAlive == nil {
-			return keep("couldn't check whether the session is still running")
-		}
-		if alive, seen := in.SessionAlive(ev.SessionID); alive {
+		ids = append(ids, ev.SessionID)
+	}
+	ids = append(ids, ev.Sessions...)
+	if len(ids) > 0 && in.SessionAlive == nil {
+		return keep("couldn't check whether the session is still running")
+	}
+	for _, id := range ids {
+		if alive, seen := in.SessionAlive(id); alive {
 			mins := int(in.Env.Now().Sub(seen) / time.Minute)
 			if mins < 1 {
 				return keep("session active just now")

@@ -27,6 +27,7 @@ type Evidence struct {
 	Source      string // "agent-folder" | "receipt" | "transcript" | "snapshot" | ""
 	SessionID   string
 	SessionName string
+	Sessions    []string // other sessions whose receipts were merged into this item
 	Agent       string
 	Weak        []string
 }

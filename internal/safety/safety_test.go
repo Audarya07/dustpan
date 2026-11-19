@@ -234,3 +234,16 @@ func TestUnregisterLockedAndNotPermanent(t *testing.T) {
 		t.Fatal("unregister must not be permanent")
 	}
 }
+
+func TestMergedSessionsKeepItemWhileAnyIsAlive(t *testing.T) {
+	in := with(offerableInputs(t), func(i *safety.Inputs) {
+		i.Item.Evidence.SessionID = "dead"
+		i.Item.Evidence.Sessions = []string{"live"}
+		i.SessionAlive = func(id string) (bool, time.Time) { return id == "live", t0.Add(-4 * time.Minute) }
+	})
+	wantReason(t, in, item.LeftAlone, "session active 4 min ago")
+	wantReason(t, with(in, func(i *safety.Inputs) { i.SessionAlive = nil }), item.LeftAlone, "couldn't check whether the session")
+	wantClass(t, safety.Evaluate(with(in, func(i *safety.Inputs) {
+		i.SessionAlive = func(string) (bool, time.Time) { return false, time.Time{} }
+	})), item.Offer)
+}

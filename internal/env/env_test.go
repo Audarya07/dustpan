@@ -110,3 +110,27 @@ func TestCanonSymlinkedDir(t *testing.T) {
 func TestCanonNeverFails(t *testing.T) {
 	want(t, env.Env{}.Canon("/nonexistent-root-zzz/a/../b"), "/nonexistent-root-zzz/b")
 }
+
+func TestCanonParentDoesNotDereferenceFinalComponent(t *testing.T) {
+	root, _ := filepath.EvalSymlinks(t.TempDir())
+	real := filepath.Join(root, "real")
+	target := filepath.Join(root, "target")
+	for _, d := range []string{real, target} {
+		if err := os.MkdirAll(d, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	link := filepath.Join(real, "foo")
+	if err := os.Symlink(target, link); err != nil {
+		t.Fatal(err)
+	}
+	dirLink := filepath.Join(root, "dirlink")
+	if err := os.Symlink(real, dirLink); err != nil {
+		t.Fatal(err)
+	}
+	e := env.Env{}
+	want(t, e.CanonParent(link), link)
+	want(t, e.CanonParent(filepath.Join(dirLink, "foo")), link)
+	want(t, e.CanonParent(filepath.Join(dirLink, "missing")), filepath.Join(real, "missing"))
+	want(t, e.CanonParent("/"), "/")
+}

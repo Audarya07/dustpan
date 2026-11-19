@@ -39,6 +39,7 @@ func collectJobCandidates(ctx context.Context, c Context, _ *runState) []candida
 		days = 14
 	}
 	stale := time.Duration(days) * 24 * time.Hour
+	canonJobs := e.Canon(jobsDir)
 	var running string
 	if e.JobDir != "" {
 		running = e.Canon(e.JobDir)
@@ -52,7 +53,10 @@ func collectJobCandidates(ctx context.Context, c Context, _ *runState) []candida
 		if ent.Type()&os.ModeSymlink != 0 || !ent.IsDir() {
 			continue
 		}
-		path := e.Canon(filepath.Join(jobsDir, ent.Name()))
+		path := e.CanonParent(filepath.Join(jobsDir, ent.Name()))
+		if filepath.Dir(path) != canonJobs {
+			continue
+		}
 		if running != "" && (receipts.Within(path, running) || receipts.Within(running, path)) {
 			continue
 		}
