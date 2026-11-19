@@ -189,10 +189,12 @@ func Evaluate(in Inputs) item.Decision {
 			return keep(fmt.Sprintf("session active %d min ago", mins))
 		}
 	}
+	if it.Unregister && it.Category == item.Worktree {
+		// Directory already gone: nothing on disk to lose, the branch remains.
+		return item.Decision{Class: item.Offer, Permanent: noTrash(in)}
+	}
 	if it.Newest.IsZero() {
-		if !it.Unregister {
-			return keep("couldn't tell when it last changed")
-		}
+		return keep("couldn't tell when it last changed")
 	} else if age := in.Env.Now().Sub(it.Newest); age < RecentWindow {
 		if age < 0 {
 			age = 0
@@ -207,6 +209,10 @@ func Evaluate(in Inputs) item.Decision {
 			return keep(r...)
 		}
 	}
-	perm := in.TrashAvailable == nil || !in.TrashAvailable(it.Path) || len(it.Secrets) > 0
-	return item.Decision{Class: item.Offer, Permanent: perm}
+	return item.Decision{Class: item.Offer, Permanent: noTrash(in)}
+}
+
+// noTrash is true when there is no same-filesystem Trash (or we can't tell).
+func noTrash(in Inputs) bool {
+	return in.TrashAvailable == nil || !in.TrashAvailable(in.Item.Path)
 }

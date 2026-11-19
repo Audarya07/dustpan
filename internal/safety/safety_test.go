@@ -12,6 +12,7 @@ import (
 	"github.com/Audarya07/agent-receipts/internal/item"
 	"github.com/Audarya07/agent-receipts/internal/proc"
 	"github.com/Audarya07/agent-receipts/internal/safety"
+	"github.com/Audarya07/agent-receipts/internal/secrets"
 )
 
 var t0 = time.Date(2026, 11, 20, 12, 0, 0, 0, time.UTC)
@@ -100,6 +101,29 @@ func TestEvaluateRules(t *testing.T) {
 	if !safety.Evaluate(with(base, func(i *safety.Inputs) { i.TrashAvailable = nil })).Permanent {
 		t.Fatal("nil trash: want permanent")
 	}
+}
+
+func TestSecretsDoNotForcePermanent(t *testing.T) {
+	in := with(offerableInputs(t), func(i *safety.Inputs) { i.Item.Secrets = []secrets.Finding{{RuleID: "r"}} })
+	d := safety.Evaluate(in)
+	wantClass(t, d, item.Offer)
+	if d.Permanent {
+		t.Fatal("secrets must not set Permanent")
+	}
+}
+
+func TestUnregisterSkipsGitAndRecency(t *testing.T) {
+	in := with(offerableInputs(t), func(i *safety.Inputs) {
+		i.Item.Unregister = true
+		i.Item.Newest = time.Time{}
+		i.Git = nil
+	})
+	wantClass(t, safety.Evaluate(in), item.Offer)
+	wantReason(t, with(in, func(i *safety.Inputs) { i.Proc = nil }), item.LeftAlone, "couldn't check running processes")
+	wantReason(t, with(in, func(i *safety.Inputs) {
+		i.SessionAlive = func(string) (bool, time.Time) { return true, t0 }
+	}), item.LeftAlone, "session active")
+	wantClass(t, safety.Evaluate(with(in, func(i *safety.Inputs) { i.Item.Path = "/Users/u/repo/src" })), item.Hidden)
 }
 
 func TestNeverTouchWinsOverEverything(t *testing.T) {
