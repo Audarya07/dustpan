@@ -1,0 +1,39 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear|compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "command -v agent-receipts >/dev/null 2>&1 && agent-receipts hook SessionStart || true",
+            "timeout": 1
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|NotebookEdit|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "command -v agent-receipts >/dev/null 2>&1 && agent-receipts hook PostToolUse || true",
+            "timeout": 1
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "command -v agent-receipts >/dev/null 2>&1 && agent-receipts hook SessionEnd || true",
+            "timeout": 1
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "name": "agent-receipts",
+  "description": "Local marketplace for the agent-receipts plugin",
+  "owner": {
+    "name": "Audarya Uttarwar"
+  },
+  "plugins": [
+    {
+      "name": "agent-receipts",
+      "description": "Reports what coding agents left behind on this machine and which session created it.",
+      "version": "0.1.0",
+      "source": "./",
+      "author": {
+        "name": "Audarya Uttarwar"
+      }
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "name": "agent-receipts",
+  "description": "Reports what coding agents left behind on this machine (worktrees, jobs, /tmp scratch, secrets) and records which session created each leftover.",
+  "version": "0.1.0",
+  "author": {
+    "name": "Audarya Uttarwar"
+  },
+  "license": "MIT"
+}
