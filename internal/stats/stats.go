@@ -12,6 +12,7 @@ import (
 	"golang.org/x/sys/unix"
 
 	"github.com/Audarya07/dustpan/internal/env"
+	"github.com/Audarya07/dustpan/internal/report"
 )
 
 // Stats are the local counters behind `stats`.
@@ -93,12 +94,11 @@ func Update(stateDir string, fn func(*Stats)) error {
 // ShareText is the anonymised summary printed by `stats --share`: counts and
 // durations only, never paths, item IDs, secret keys or session names.
 func ShareText(s Stats) string {
-	gb := func(n int64) string { return fmt.Sprintf("%.1f GB", float64(n)/1e9) }
 	keep, first := s.KeepRate(), s.FirstReportString()
 	var b strings.Builder
 	fmt.Fprintf(&b, "%s usage summary\n", env.AppName)
 	fmt.Fprintf(&b, "  reports run:            %d\n", s.ReportsRun)
-	fmt.Fprintf(&b, "  recovered:              %s trashed, %s permanently deleted\n", gb(s.BytesTrashed), gb(s.BytesDeleted))
+	fmt.Fprintf(&b, "  recovered:              %s trashed, %s permanently deleted\n", report.HumanSize(s.BytesTrashed), report.HumanSize(s.BytesDeleted))
 	fmt.Fprintf(&b, "  secrets found:          %d\n", len(s.SecretKeys))
 	fmt.Fprintf(&b, "  real-secret answers:    %d real, %d not real, %d unsure\n", s.SecretReal, s.SecretNotReal, s.SecretUnsure)
 	fmt.Fprintf(&b, "  items cleaned, kept:    %d cleaned, %d kept (keep rate %s)\n", s.ItemsCleaned, s.ItemsKept, keep)
