@@ -137,6 +137,16 @@ func secretLines(items []item.Item) []secretLine {
 
 func hasSecrets(it item.Item) bool { return len(it.Secrets) > 0 }
 
+// SecretPath is where a finding sits as printed in item-scoped lines: the
+// path relative to the item, or the item's own path when the item is the
+// scanned file itself (Finding.Path is empty then).
+func SecretPath(it item.Item, f secrets.Finding) string {
+	if f.Path == "" {
+		return tilde(it.Path)
+	}
+	return f.Path
+}
+
 var categoryLabels = map[item.Category]string{
 	item.Worktree:   "Abandoned worktrees",
 	item.Transcript: "Old transcripts & logs",
@@ -397,7 +407,7 @@ func RenderDetails(w io.Writer, r scan.Result, color bool) {
 			fmt.Fprintf(w, "  why dead: %s\n", it.DeadReason)
 		}
 		for _, f := range it.Secrets {
-			fmt.Fprintf(w, "  %s %s  %s  %s:%d\n", p.red("secret:"), f.Masked, secretLabel(f.RuleID), f.Path, f.Line)
+			fmt.Fprintf(w, "  %s %s  %s  %s:%d\n", p.red("secret:"), f.Masked, secretLabel(f.RuleID), SecretPath(it, f), f.Line)
 		}
 		if it.SecretsPartial {
 			fmt.Fprintln(w, "  partially scanned — more secrets may exist")

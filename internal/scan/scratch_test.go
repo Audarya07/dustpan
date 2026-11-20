@@ -11,6 +11,7 @@ import (
 	"github.com/Audarya07/agent-receipts/internal/item"
 	"github.com/Audarya07/agent-receipts/internal/receipts"
 	"github.com/Audarya07/agent-receipts/internal/scan"
+	"github.com/Audarya07/agent-receipts/internal/secrets"
 )
 
 func (h *fixture) mkdir(p string) string {
@@ -153,5 +154,20 @@ func TestRecheckLinkItemNeverReturnsItsTarget(t *testing.T) {
 	}
 	if fresh, err := scan.Recheck(context.Background(), c, it); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("gone: got %+v, %v", fresh, err)
+	}
+}
+
+func TestScratchFileItemIsSecretScanned(t *testing.T) {
+	h := newFixtureHome(t)
+	h.write(h.tmp, "acct.json", `{"aws_access_key_id":"AKIAZ7Q2XJ4K3M5N6Q2X"}`)
+	c := h.context(h.index(created(h.tmpPath("acct.json"), false, "s1")))
+	sc, err := secrets.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.Secrets = sc
+	it := wantItem(t, mustRun(t, c), h.tmpPath("acct.json"), item.Offer)
+	if len(it.Secrets) != 1 || it.Secrets[0].Path != "" || it.SecretsPartial {
+		t.Fatalf("want 1 finding on the file itself, got %+v partial=%v", it.Secrets, it.SecretsPartial)
 	}
 }

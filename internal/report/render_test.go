@@ -203,3 +203,20 @@ func TestCompactNoOffers(t *testing.T) {
 		t.Error("no dead section without offers")
 	}
 }
+
+// A secret found in a single-file item has an empty Path: every view must
+// print the item's own path instead.
+func TestSingleFileSecretShowsItemPath(t *testing.T) {
+	it := offer(item.Scratch, "/tmp/notes.txt", 10)
+	it.Secrets = []secrets.Finding{{Path: "", Line: 3, RuleID: "aws-access-token", Masked: "AKIA…7Q2X"}}
+	r := scan.Result{GeneratedAt: fixedTime, Items: []item.Item{it}}
+	var comp, det bytes.Buffer
+	report.RenderCompact(&comp, r, false)
+	report.RenderDetails(&det, r, false)
+	if !strings.Contains(comp.String(), "AKIA…7Q2X  AWS key  /tmp/notes.txt\n") {
+		t.Errorf("compact:\n%s", comp.String())
+	}
+	if !strings.Contains(det.String(), "AWS key  /tmp/notes.txt:3") {
+		t.Errorf("details:\n%s", det.String())
+	}
+}

@@ -134,3 +134,62 @@ func TestScanHonorsCancelledContext(t *testing.T) {
 		t.Fatal("want ctx error")
 	}
 }
+
+func TestScanSingleFileRoot(t *testing.T) {
+	dir := t.TempDir()
+	write(t, dir, "notes.txt", `{"aws_access_key_id":"`+fakeAWS+`"}`)
+	fs, partial, err := newScanner(t).Scan(context.Background(), filepath.Join(dir, "notes.txt"), nil)
+	if err != nil || partial {
+		t.Fatalf("err=%v partial=%v", err, partial)
+	}
+	if len(fs) != 1 || fs[0].Path != "" || fs[0].Line != 1 {
+		t.Fatalf("want 1 finding with empty Path (the root itself), got %+v", fs)
+	}
+}
+
+func TestScanSymlinkRootIsNotFollowed(t *testing.T) {
+	dir := t.TempDir()
+	write(t, dir, "k.json", `{"aws_access_key_id":"`+fakeAWS+`"}`)
+	link := filepath.Join(dir, "link")
+	if err := os.Symlink(filepath.Join(dir, "k.json"), link); err != nil {
+		t.Fatal(err)
+	}
+	fs, partial, err := newScanner(t).Scan(context.Background(), link, nil)
+	if err != nil || partial || len(fs) != 0 {
+		t.Fatalf("followed symlink root: %v partial=%v err=%v", fs, partial, err)
+	}
+}
+
+func TestScanUnreadableIsPartial(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root can read anything")
+	}
+	dir := t.TempDir()
+	write(t, dir, "f.json", `{"aws_access_key_id":"`+fakeAWS+`"}`)
+	f := filepath.Join(dir, "f.json")
+	if err := os.Chmod(f, 0); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(f, 0o600) })
+	if _, partial, _ := newScanner(t).Scan(context.Background(), f, nil); !partial {
+		t.Error("unreadable file root: want partial")
+	}
+	if _, partial, _ := newScanner(t).Scan(context.Background(), dir, nil); !partial {
+		t.Error("unreadable file inside dir: want partial")
+	}
+	sub := filepath.Join(t.TempDir(), "sub")
+	if err := os.Mkdir(sub, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	write(t, sub, "x", "x")
+	if err := os.Chmod(sub, 0); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(sub, 0o700) })
+	if _, partial, _ := newScanner(t).Scan(context.Background(), sub, nil); !partial {
+		t.Error("unreadable dir root: want partial")
+	}
+	if _, partial, _ := newScanner(t).Scan(context.Background(), filepath.Join(dir, "missing"), nil); !partial {
+		t.Error("missing root: want partial (couldn't look)")
+	}
+}

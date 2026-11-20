@@ -153,7 +153,7 @@ func describe(it item.Item, now time.Time) string {
 			fmt.Fprintf(&b, "  ... and %d more possible secrets\n", len(it.Secrets)-maxSecretLines)
 			break
 		}
-		fmt.Fprintf(&b, "  possible secret: %s:%d %s %s\n", f.Path, f.Line, f.Description, f.Masked)
+		fmt.Fprintf(&b, "  possible secret: %s:%d %s %s\n", report.SecretPath(it, f), f.Line, f.Description, f.Masked)
 	}
 	if it.SecretsPartial {
 		b.WriteString("  (secret check was partial)\n")

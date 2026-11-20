@@ -377,3 +377,14 @@ func TestCleanDeclinedConfirmCountsAsSkipped(t *testing.T) {
 		t.Fatalf("sum = %+v", sum)
 	}
 }
+
+// A single-file item's finding has an empty Path; the prompt must name the
+// file itself, never ":3".
+func TestDescribeSingleFileSecretNamesTheFile(t *testing.T) {
+	it := mk(t, "notes.txt", 10)
+	it.Secrets = []secrets.Finding{{Path: "", Line: 3, Description: "key", Masked: "AKIA****"}}
+	out := describe(it, it.Newest)
+	if !strings.Contains(out, "possible secret: "+it.Path+":3 key AKIA****") {
+		t.Fatalf("describe:\n%s", out)
+	}
+}
