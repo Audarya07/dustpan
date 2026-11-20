@@ -6,7 +6,7 @@ Reports what coding agents left behind on your machine, and which agent session 
 
 Agents like Claude Code leave abandoned git worktrees, finished job folders, build binaries and scratch files in `/tmp`, and old transcripts. Some of it holds secrets: an `.env` copied into a forgotten worktree, cloud credentials in a job's temp folder. This tool finds it, shows how much space it takes, and tells you which leftovers contain secrets. It records receipts, so "this looks old" becomes "the session that made this ended 3 days ago and nothing has touched it since".
 
-Codex and Cursor folders are scanned too, but only Claude Code sessions get receipts in this version.
+Codex and Cursor worktree folders and old Codex session transcripts are cleaned up under the same safety rules; in this version only Claude Code sessions get receipts (so only they show which session left something). Cursor transcripts aren't scanned.
 
 ```
 Your agents left 3.1 GB behind in 14 places.  2 contain secrets.
@@ -60,7 +60,7 @@ The hooks do nothing if the `agent-receipts` binary is not on your `PATH`.
 - Only items with proof an agent created them are offered. Your own worktrees are not listed.
 - Your code and config are never touched: main checkouts, files inside git checkouts, agent settings and memory, shell dotfiles.
 - Deletions go to the Trash, so they can be undone. For items containing secrets, permanent deletion (you type `delete`) is offered alongside a "trash anyway" choice, because a trashed secret is still readable. Where an item's disk has no Trash, permanent deletion is the only option. It never empties the Trash.
-- Secrets are always masked (only the ends are shown). Receipts and output hold paths and timestamps only, never file contents or full secret values. Deleting a secret does not undo a leak: copies may exist in backups or provider logs.
+- Secrets are always masked (at most the first 4 and last 4 characters are shown). Receipts and output hold paths and timestamps only, never file contents or full secret values. Deleting a secret does not undo a leak: copies may exist in backups or provider logs.
 
 ## Commands
 
