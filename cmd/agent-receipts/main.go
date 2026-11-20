@@ -34,6 +34,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return 0
 	case "report":
 		return runReport(args[1:], stdout, stderr)
+	case "clean":
+		return runClean(args[1:], stdout, stderr)
 	case "refresh": // hidden: update cache and stats without output
 		return runRefresh(stderr)
 	default:
