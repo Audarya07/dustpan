@@ -111,6 +111,34 @@ func discoverRepos(ctx context.Context, c Context, st *runState) []string {
 	return repos
 }
 
+// discoverCheckouts records every main checkout and linked worktree of the
+// discovered repos in st, for the never-touch rules of other categories.
+func discoverCheckouts(ctx context.Context, c Context, st *runState) {
+	for _, repo := range discoverRepos(ctx, c, st) {
+		if ctx.Err() != nil {
+			return
+		}
+		wts, err := gitwt.List(repo)
+		if err != nil {
+			continue
+		}
+		for _, wt := range wts {
+			recordCheckout(c, st, wt)
+		}
+	}
+}
+
+// recordCheckout adds a listed worktree to st: the main checkout as a main
+// checkout, a linked one (both as written and resolved) as a worktree.
+func recordCheckout(c Context, st *runState, wt gitwt.Worktree) {
+	if wt.Main {
+		st.addMain(c.Env.Canon(wt.Path))
+		return
+	}
+	st.addWorktree(c.Env.Canon(wt.Path))
+	st.addWorktree(c.Env.CanonParent(wt.Path))
+}
+
 // agentFolders returns the canonical folders whose worktrees are agent-made.
 func agentFolders(c Context, repos []string) []string {
 	e := c.Env
@@ -140,8 +168,8 @@ func collectWorktreeCandidates(ctx context.Context, c Context, st *runState) []c
 		base := ""
 		baseDone := false
 		for _, wt := range wts {
+			recordCheckout(c, st, wt)
 			if wt.Main {
-				st.addMain(c.Env.Canon(wt.Path))
 				continue
 			}
 			path := c.Env.Canon(wt.Path)

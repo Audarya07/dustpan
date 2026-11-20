@@ -55,6 +55,28 @@ type candidate struct {
 type runState struct {
 	mainCheckouts []string // canonical main checkout of every repo discovered
 	seenMain      map[string]bool
+	worktrees     []string // canonical path of every linked worktree listed
+}
+
+// addWorktree records a linked worktree: never touched by other categories.
+func (s *runState) addWorktree(path string) {
+	for _, w := range s.worktrees {
+		if w == path {
+			return
+		}
+	}
+	s.worktrees = append(s.worktrees, path)
+}
+
+// checkoutsFor returns the checkouts that are never-touch for items of cat:
+// main checkouts for worktrees, and every discovered worktree as well for
+// anything else.
+func (s *runState) checkoutsFor(cat item.Category) []string {
+	if cat == item.Worktree {
+		return s.mainCheckouts
+	}
+	out := append([]string(nil), s.mainCheckouts...)
+	return append(out, s.worktrees...)
 }
 
 func (s *runState) addMain(path string) {
@@ -129,14 +151,18 @@ func finish(ctx context.Context, c Context, st *runState, alive func(string) (bo
 	if !it.Unregister {
 		it.Size, it.Newest = Measure(it.Path)
 	}
-	it.Decision = safety.Evaluate(safety.Inputs{
+	in := safety.Inputs{
 		Item: it, Env: c.Env, Proc: c.Proc, ProcErr: c.ProcErr,
 		Git: cand.git, GitErr: cand.gitErr,
 		SessionAlive:    alive,
 		TrashAvailable:  c.Trash.Available,
-		MainCheckouts:   st.mainCheckouts,
+		MainCheckouts:   st.checkoutsFor(it.Category),
 		ExtraNeverTouch: c.Config.ExtraNeverTouch,
-	})
+	}
+	if it.Category != item.Worktree {
+		in.GitCheckout = gitCheckoutFunc(c, it.Category)
+	}
+	it.Decision = safety.Evaluate(in)
 	failed := false
 	if it.Decision.Class != item.Hidden && !it.Unregister && c.Secrets != nil {
 		var skip func(string, fs.DirEntry) bool
@@ -258,11 +284,11 @@ func recheckByCollecting(ctx context.Context, c Context, st *runState, it item.I
 	case item.Job:
 		col = collectJobCandidates
 	case item.Scratch:
-		discoverRepos(ctx, c, st) // fills st.mainCheckouts for the never-touch rules
 		col = collectScratchCandidates
 	default:
 		col = collectTranscriptCandidates
 	}
+	discoverCheckouts(ctx, c, st) // the never-touch checkouts, as in Run
 	// CanonParent, not Canon: a link item is identified by the link itself.
 	path := c.Env.CanonParent(it.Path)
 	for _, cand := range col(ctx, c, st) {

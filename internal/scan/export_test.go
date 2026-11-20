@@ -12,3 +12,10 @@ func SetBirthTime(f func(path string) (time.Time, bool)) (restore func()) {
 
 // RealBirthTime is the platform birth-time source.
 var RealBirthTime = fileBirthTime
+
+// SetCheckoutWalkCap lowers the git-checkout walk's entry cap for a test.
+func SetCheckoutWalkCap(n int) (restore func()) {
+	old := checkoutWalkCap
+	checkoutWalkCap = n
+	return func() { checkoutWalkCap = old }
+}

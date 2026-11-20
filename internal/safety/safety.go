@@ -22,13 +22,17 @@ const RecentWindow = 24 * time.Hour
 // Inputs is everything Evaluate needs. A nil Proc with nil ProcErr (and a nil
 // Git with nil GitErr for worktrees) means "not checked", never "all clear".
 type Inputs struct {
-	Item            item.Item
-	Env             env.Env
-	Proc            *proc.Snapshot
-	ProcErr         error
-	Git             *gitwt.State
-	GitErr          error
-	SessionAlive    func(id string) (alive bool, lastSeen time.Time)
+	Item         item.Item
+	Env          env.Env
+	Proc         *proc.Snapshot
+	ProcErr      error
+	Git          *gitwt.State
+	GitErr       error
+	SessionAlive func(id string) (alive bool, lastSeen time.Time)
+	// GitCheckout is required for non-worktree items: it returns a reason
+	// when path contains or sits inside a git checkout, or an error when it
+	// couldn't tell. Nil means not checked, which keeps the item.
+	GitCheckout     func(path string) (reason string, err error)
 	TrashAvailable  func(path string) bool
 	MainCheckouts   []string
 	ExtraNeverTouch []string
@@ -198,6 +202,18 @@ func Evaluate(in Inputs) item.Decision {
 	if !ev.Strong {
 		return item.Decision{Class: item.LeftAlone, DetailsOnly: true,
 			Reasons: []string{"only weak evidence an agent made this"}}
+	}
+	if it.Category != item.Worktree {
+		if in.GitCheckout == nil {
+			return keep("couldn't check for git checkouts")
+		}
+		why, err := in.GitCheckout(it.Path)
+		if err != nil {
+			return keep("couldn't check for git checkouts")
+		}
+		if why != "" {
+			return keep(why)
+		}
 	}
 	if in.ProcErr != nil || in.Proc == nil {
 		return keep("couldn't check running processes")

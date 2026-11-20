@@ -247,3 +247,23 @@ func TestMergedSessionsKeepItemWhileAnyIsAlive(t *testing.T) {
 		i.SessionAlive = func(string) (bool, time.Time) { return false, time.Time{} }
 	})), item.Offer)
 }
+
+// R27: non-worktree items need a git-checkout check that ran and found
+// nothing; anything else keeps them.
+func TestNonWorktreeNeedsCheckoutCheck(t *testing.T) {
+	base := with(offerableInputs(t), func(i *safety.Inputs) {
+		i.Item.Category = item.Scratch
+		i.Item.Path = "/private/tmp/work"
+		i.Item.Evidence.Source = "receipt"
+		i.Git = nil
+		i.GitCheckout = func(string) (string, error) { return "", nil }
+	})
+	wantClass(t, safety.Evaluate(base), item.Offer)
+	wantReason(t, with(base, func(i *safety.Inputs) { i.GitCheckout = nil }), item.LeftAlone, "couldn't check for git checkouts")
+	wantReason(t, with(base, func(i *safety.Inputs) {
+		i.GitCheckout = func(string) (string, error) { return "", errors.New("cap") }
+	}), item.LeftAlone, "couldn't check for git checkouts")
+	wantReason(t, with(base, func(i *safety.Inputs) {
+		i.GitCheckout = func(string) (string, error) { return "contains a git checkout", nil }
+	}), item.LeftAlone, "contains a git checkout")
+}

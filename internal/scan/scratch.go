@@ -44,7 +44,7 @@ func collectScratchCandidates(ctx context.Context, c Context, st *runState) []ca
 		if !withinAny(r.Path, tmps) || containsPath(tmps, r.Path) {
 			continue
 		}
-		if never, _ := safety.NeverTouch(r.Path, e, st.mainCheckouts, c.Config.ExtraNeverTouch); never {
+		if never, _ := safety.NeverTouch(r.Path, e, st.checkoutsFor(item.Scratch), c.Config.ExtraNeverTouch); never {
 			continue
 		}
 		if _, err := os.Lstat(r.Path); err != nil {
