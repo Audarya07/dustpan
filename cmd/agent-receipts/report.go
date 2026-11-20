@@ -39,6 +39,10 @@ func useColor(w io.Writer) bool {
 	return ok && term.IsTerminal(int(f.Fd()))
 }
 
+// lowerPriority renices this process for background work (refresh and the
+// detached reconstruct). Tests replace it.
+var lowerPriority = func() { _ = unix.Setpriority(unix.PRIO_PROCESS, 0, 10) }
+
 // startDetachedReconstruct continues day-one reconstruction in a new
 // session, stdio on /dev/null. It never waits for it.
 func startDetachedReconstruct() {
@@ -182,7 +186,7 @@ func runReport(args []string, stdout, stderr io.Writer) int {
 // runRefresh updates the cache and stats without printing a report; the
 // SessionEnd hook uses it.
 func runRefresh(stderr io.Writer) int {
-	_ = unix.Setpriority(unix.PRIO_PROCESS, 0, 10) // detached, low priority
+	lowerPriority() // detached, low priority
 	e := env.FromOS()
 	if err := checkEnv(e); err != nil {
 		fmt.Fprintf(stderr, "%s: refresh: %v\n", env.AppName, err)

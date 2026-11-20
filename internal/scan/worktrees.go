@@ -172,7 +172,7 @@ func collectWorktreeCandidates(ctx context.Context, c Context, st *runState) []c
 			if wt.Main {
 				continue
 			}
-			path := c.Env.Canon(wt.Path)
+			path, _ := worktreePath(c, wt)
 			if seen[path] {
 				continue
 			}
@@ -192,9 +192,10 @@ func collectWorktreeCandidates(ctx context.Context, c Context, st *runState) []c
 func evidenceFor(c Context, folders []string, path string) (item.Evidence, bool) {
 	var ev item.Evidence
 	if c.Index != nil {
-		// Exact-path receipts only: an ancestor's mkdir must never make a
-		// hand-made worktree beneath it look agent-made.
-		rec, ok := c.Index.CreatorExact(path)
+		// Exact-path "git worktree add" receipts only: an ancestor's mkdir,
+		// or a `cp .env ../wt`, must never make a hand-made worktree look
+		// agent-made.
+		rec, ok := c.Index.CreatorExactVia(path, "git worktree add")
 		if ok {
 			ev.Strong, ev.Source = true, rec.Source
 			if ev.Source == "" || ev.Source == "hook" {
@@ -228,7 +229,7 @@ func evidenceFor(c Context, folders []string, path string) (item.Evidence, bool)
 // worktreeCandidate builds the candidate for one non-main worktree, or
 // reports false when nothing ties it to an agent.
 func worktreeCandidate(ctx context.Context, c Context, folders []string, repo string, wt gitwt.Worktree, base string) (candidate, bool) {
-	path := c.Env.Canon(wt.Path)
+	path, isLink := worktreePath(c, wt)
 	ev, ok := evidenceFor(c, folders, path)
 	if !ok {
 		return candidate{}, false
@@ -236,9 +237,24 @@ func worktreeCandidate(ctx context.Context, c Context, folders []string, repo st
 	it := item.Item{
 		Category: item.Worktree, Path: path, Repo: repo, Branch: wt.Branch, Evidence: ev,
 	}
+	if isLink {
+		// Never resolve it: the target may be anything, and git or Trash
+		// would act on what the link points at.
+		return candidate{it: it, isLink: true, keep: "worktree path is a symlink"}, true
+	}
 	if wt.Prunable {
-		it.Unregister, it.DeadReason = true, "folder already gone"
-		return candidate{it: it, git: &gitwt.State{Locked: wt.Locked}}, true
+		// git also calls a worktree with a broken .git prunable while its
+		// folder still exists: only a folder that is really gone may be
+		// unregistered.
+		switch _, err := os.Lstat(wt.Path); {
+		case os.IsNotExist(err):
+			it.Unregister, it.DeadReason = true, "folder already gone"
+			return candidate{it: it, git: &gitwt.State{Locked: wt.Locked}}, true
+		case err == nil:
+			return candidate{it: it, keep: "git can't read this worktree (broken .git)"}, true
+		default:
+			return candidate{it: it, keep: "couldn't check the worktree folder"}, true
+		}
 	}
 	wt.Path = path
 	state, err := gitwt.Inspect(ctx, wt, base)
@@ -255,6 +271,15 @@ func worktreeCandidate(ctx context.Context, c Context, folders []string, repo st
 		it.DeadReason = "pushed"
 	}
 	return candidate{it: it, git: &state}, true
+}
+
+// worktreePath is the canonical item path of a listed worktree: resolved,
+// unless the worktree path itself is a symlink, which stays the link.
+func worktreePath(c Context, wt gitwt.Worktree) (string, bool) {
+	if fi, err := os.Lstat(wt.Path); err == nil && fi.Mode()&os.ModeSymlink != 0 {
+		return c.Env.CanonParent(wt.Path), true
+	}
+	return c.Env.Canon(wt.Path), false
 }
 
 // recheckWorktree re-lists the item's repo and rebuilds its candidate.
@@ -280,7 +305,7 @@ func recheckWorktree(ctx context.Context, c Context, st *runState, it item.Item)
 		return candidate{}, fmt.Errorf("list worktrees of %s: %w", repo, err)
 	}
 	for _, wt := range wts {
-		if wt.Main || c.Env.Canon(wt.Path) != it.Path {
+		if p, _ := worktreePath(c, wt); wt.Main || p != it.Path {
 			continue
 		}
 		base := ""

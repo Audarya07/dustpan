@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -42,5 +43,20 @@ func TestReportAndCleanRefuseWithoutHome(t *testing.T) {
 		if strings.Count(msg, "\n") != 1 || !strings.Contains(msg, "home folder") || out.Len() != 0 {
 			t.Errorf("%s: stdout %q stderr %q", name, out.String(), msg)
 		}
+	}
+}
+
+// R32: the detached reconstruct started by report runs at low priority.
+func TestReconstructLowersPriority(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("HOME", root) // no transcripts: nothing real is read
+	t.Setenv("XDG_STATE_HOME", filepath.Join(root, "state"))
+	calls := 0
+	old := lowerPriority
+	lowerPriority = func() { calls++ }
+	t.Cleanup(func() { lowerPriority = old })
+	var out, errb bytes.Buffer
+	if code := run([]string{"reconstruct"}, &out, &errb); code != 0 || calls != 1 {
+		t.Fatalf("exit %d, lowerPriority calls %d, stderr %q", code, calls, errb.String())
 	}
 }

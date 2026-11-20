@@ -203,7 +203,7 @@ func TestRunningProcessKeepsWorktree(t *testing.T) {
 func TestSessionAliveSignals(t *testing.T) {
 	h := newFixtureHome(t)
 	wt := h.addWorktree("repo/.claude/worktrees/s")
-	ix := h.index(receipts.Receipt{Kind: receipts.KindCreated, Path: wt, IsDir: true, SessionID: "live"})
+	ix := h.index(receipts.Receipt{Kind: receipts.KindCreated, Path: wt, IsDir: true, SessionID: "live", Via: "git worktree add"})
 	c := h.context(ix)
 	now := c.Env.Now()
 
@@ -321,7 +321,7 @@ func TestReceiptWithSymlinkedPathStillMatches(t *testing.T) {
 	if err := os.Symlink(h.tmp, link); err != nil {
 		t.Fatal(err)
 	}
-	ix := h.index(receipts.Receipt{Kind: receipts.KindCreated, Path: filepath.Join(link, "at-sym"), IsDir: true, SessionID: "s1"})
+	ix := h.index(receipts.Receipt{Kind: receipts.KindCreated, Path: filepath.Join(link, "at-sym"), IsDir: true, SessionID: "s1", Via: "git worktree add"})
 	wantItem(t, mustRun(t, h.context(ix)), wt, item.Offer)
 }
 
@@ -361,4 +361,55 @@ func TestRecheckWorktreeHangingGitIsError(t *testing.T) {
 	if err == nil || errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("recheck with hanging git: %+v, %v; want a re-check error", fresh.Decision, err)
 	}
+}
+
+// R32: only a "git worktree add" receipt for the exact path makes a worktree
+// agent-made; `cp .env ../my-wt` records the same path with Via "cp".
+func TestExactReceiptMustBeWorktreeAdd(t *testing.T) {
+	h := newFixtureHome(t)
+	mine := h.addWorktree("my-wt")
+	cp := receipts.Receipt{Kind: receipts.KindCreated, Path: mine, IsDir: false, SessionID: "s1", Via: "cp", Source: "hook"}
+	wantNoItem(t, mustRun(t, h.context(h.index(cp))), mine)
+	add := cp
+	add.Via, add.IsDir = "git worktree add", true
+	wantItem(t, mustRun(t, h.context(h.index(add, cp))), mine, item.Offer)
+}
+
+// R32: git also marks a worktree prunable when its .git is broken while the
+// folder exists; that must never become "unregister".
+func TestPrunableButPresentWorktreeIsKept(t *testing.T) {
+	h := newFixtureHome(t)
+	wt := h.addWorktree("repo/.claude/worktrees/broken")
+	if err := os.Remove(filepath.Join(wt, ".git")); err != nil {
+		t.Fatal(err)
+	}
+	it := wantItem(t, mustRun(t, h.context(receipts.BuildIndex(nil))), wt, item.LeftAlone)
+	if it.Unregister {
+		t.Fatalf("broken worktree with its folder present marked unregister: %+v", it)
+	}
+}
+
+// R32: a worktree path that is itself a symlink is kept as the link, never
+// resolved to (and offered as) its target.
+func TestSymlinkWorktreePathIsKept(t *testing.T) {
+	h := newFixtureHome(t)
+	wt := h.addWorktree("repo/.claude/worktrees/lnk")
+	target := filepath.Join(h.home, "elsewhere", "t")
+	if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(wt, target); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(target, wt); err != nil {
+		t.Fatal(err)
+	}
+	ix := h.index(receipts.Receipt{Kind: receipts.KindCreated, Path: target, IsDir: true, SessionID: "s1",
+		Via: "git worktree add", Source: "hook"})
+	res := mustRun(t, h.context(ix))
+	it := wantItem(t, res, wt, item.LeftAlone)
+	if len(it.Decision.Reasons) == 0 || it.Decision.Reasons[0] != "worktree path is a symlink" {
+		t.Fatalf("reasons: %v", it.Decision.Reasons)
+	}
+	wantNoItem(t, res, target)
 }

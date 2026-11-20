@@ -59,7 +59,7 @@ The hooks do nothing if the `agent-receipts` binary is not on your `PATH`.
 - Worktrees with uncommitted work, non-regenerable ignored files (like `.env`), or commits that exist nowhere else are never offered.
 - Only items with proof an agent created them are offered. Your own worktrees are not listed.
 - Your code and config are never touched: main checkouts, files inside git checkouts, agent settings and memory, shell dotfiles.
-- Deletions go to the Trash, so they can be undone. For items containing secrets, permanent deletion (you type `delete`) is offered alongside a "trash anyway" choice, because a trashed secret is still readable. Where an item's disk has no Trash, permanent deletion is the only option. It never empties the Trash.
+- Deletions go to the Trash, so they can be undone. A worktree put back from the Trash is no longer registered with git; its branch is kept, so to work on it again check the branch out in a new worktree. For items containing secrets, permanent deletion (you type `delete`) is offered alongside a "trash anyway" choice, because a trashed secret is still readable. Where an item's disk has no Trash, permanent deletion is the only option. It never empties the Trash.
 - Secrets are always masked (at most the first 4 and last 4 characters are shown). Receipts and output hold paths and timestamps only, never file contents or full secret values. Deleting a secret does not undo a leak: copies may exist in backups or provider logs.
 
 ## Commands
@@ -72,7 +72,7 @@ The hooks do nothing if the `agent-receipts` binary is not on your `PATH`.
 
 ## Where state lives
 
-`$XDG_STATE_HOME/agent-receipts/`, by default `~/.local/state/agent-receipts/`: receipts, cached report, stats, nudge state, reconstruction progress, session snapshots and lock files. Folders are `0700` and files `0600`.
+`$XDG_STATE_HOME/agent-receipts/`, by default `~/.local/state/agent-receipts/`: receipts, cached report, stats, nudge state, reconstruction progress, session snapshots and lock files. Folders are created with mode `0700` and files with `0600`; an existing folder's mode is not changed.
 
 ## No telemetry
 

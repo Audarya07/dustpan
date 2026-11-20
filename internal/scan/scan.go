@@ -49,6 +49,8 @@ type candidate struct {
 	it     item.Item
 	git    *gitwt.State
 	gitErr error
+	keep   string // when set, the item is left alone for this reason
+	isLink bool   // the item path is a symlink: never resolved to its target
 }
 
 // runState is shared by the collectors and the evaluation of one run.
@@ -137,7 +139,7 @@ func Run(ctx context.Context, c Context) (Result, error) {
 // one candidate. The bool reports a secret scan that failed.
 func finish(ctx context.Context, c Context, st *runState, alive func(string) (bool, time.Time), cand candidate) (item.Item, bool) {
 	it := cand.it
-	if it.Category == item.Worktree {
+	if it.Category == item.Worktree && !cand.isLink {
 		it.Path = c.Env.Canon(it.Path)
 	} else {
 		// Never dereference the item itself: a symlink is measured and moved
@@ -163,6 +165,9 @@ func finish(ctx context.Context, c Context, st *runState, alive func(string) (bo
 		in.GitCheckout = gitCheckoutFunc(c, it.Category)
 	}
 	it.Decision = safety.Evaluate(in)
+	if cand.keep != "" && it.Decision.Class != item.Hidden {
+		it.Decision = item.Decision{Class: item.LeftAlone, Reasons: []string{cand.keep}}
+	}
 	failed := false
 	if it.Decision.Class != item.Hidden && !it.Unregister && c.Secrets != nil {
 		var skip func(string, fs.DirEntry) bool

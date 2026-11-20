@@ -26,6 +26,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stdout, "%s %s\n", env.AppName, env.Version)
 		return 0
 	case "reconstruct": // hidden: background continuation of day-one reconstruction
+		lowerPriority() // detached, low priority, like refresh
 		e := env.FromOS()
 		if _, err := transcripts.Reconstruct(context.Background(), e, receipts.Open(e.StateDir)); err != nil {
 			fmt.Fprintf(stderr, "%s: reconstruct: %v\n", env.AppName, err)

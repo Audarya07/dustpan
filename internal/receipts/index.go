@@ -155,6 +155,16 @@ func (ix *Index) CreatorExact(path string) (Receipt, bool) {
 	return Receipt{}, false
 }
 
+// CreatorExactVia is CreatorExact restricted to receipts made by via.
+func (ix *Index) CreatorExactVia(path, via string) (Receipt, bool) {
+	for i := len(ix.strong) - 1; i >= 0; i-- {
+		if r := ix.strong[i]; r.Path == path && r.Via == via {
+			return r, true
+		}
+	}
+	return Receipt{}, false
+}
+
 // WeakCreatorsExact is WeakCreators restricted to receipts whose Path is
 // exactly path.
 func (ix *Index) WeakCreatorsExact(path string) []string {
