@@ -99,7 +99,7 @@ func sessionStart(ctx context.Context, d Deps, p Input, out io.Writer) error {
 		}
 	}
 	err := d.Store.Append(r)
-	if err2 := writeSnapshot(d, p.SessionID); err == nil {
+	if err2 := writeSnapshot(d, p.SessionID, p.Source == "compact"); err == nil {
 		err = err2
 	}
 	if err2 := maybeNudge(d, out); err == nil {
@@ -232,13 +232,16 @@ func weakAttribution(ctx context.Context, d Deps, session string) error {
 	}
 	ix := receipts.BuildIndex(loadTail(d.Env.StateDir))
 	sessions := []string{session}
-	if d.Procs != nil {
-		if snap, perr := d.Procs(ctx); perr == nil && snap != nil {
-			for id, s := range ix.Sessions() {
-				if id != session && s.PID != 0 && !s.PIDStart.IsZero() && snap.Alive(s.PID, s.PIDStart) {
-					sessions = append(sessions, id)
-				}
-			}
+	if d.Procs == nil {
+		return nil
+	}
+	snap, perr := d.Procs(ctx)
+	if perr != nil || snap == nil {
+		return nil // liveness unknown: do not guess at attribution
+	}
+	for id, s := range ix.Sessions() {
+		if id != session && s.PID != 0 && !s.PIDStart.IsZero() && snap.Alive(s.PID, s.PIDStart) {
+			sessions = append(sessions, id)
 		}
 	}
 	var rs []receipts.Receipt
@@ -312,7 +315,12 @@ func scanTmp(tmpDirs []string) (map[string]int64, error) {
 	return m, nil
 }
 
-func writeSnapshot(d Deps, session string) error {
+func writeSnapshot(d Deps, session string, keepExisting bool) error {
+	if keepExisting { // compaction re-fires SessionStart; keep the original baseline
+		if _, err := os.Stat(snapshotPath(d.Env.StateDir, session)); err == nil {
+			return nil
+		}
+	}
 	m, _ := scanTmp(d.Env.TmpDirs)
 	data, err := json.Marshal(m)
 	if err != nil {
@@ -360,4 +368,19 @@ func SpawnRefresh() error {
 		return err
 	}
 	return cmd.Process.Release()
+}
+
+// PruneSnapshots removes snapshot files older than maxAge (sessions that
+// crashed without a SessionEnd).
+func PruneSnapshots(stateDir string, maxAge time.Duration, now time.Time) {
+	dir := filepath.Join(stateDir, "snapshots")
+	ents, err := os.ReadDir(dir)
+	if err != nil {
+		return
+	}
+	for _, e := range ents {
+		if fi, err := e.Info(); err == nil && !e.IsDir() && now.Sub(fi.ModTime()) > maxAge {
+			os.Remove(filepath.Join(dir, e.Name()))
+		}
+	}
 }

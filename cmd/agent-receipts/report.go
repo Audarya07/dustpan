@@ -4,7 +4,9 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"github.com/Audarya07/agent-receipts/internal/hook"
 	"github.com/Audarya07/agent-receipts/internal/refreshlock"
+	"golang.org/x/sys/unix"
 	"io"
 	"os"
 	"os/exec"
@@ -175,12 +177,14 @@ func runReport(args []string, stdout, stderr io.Writer) int {
 // runRefresh updates the cache and stats without printing a report; the
 // SessionEnd hook uses it.
 func runRefresh(stderr io.Writer) int {
+	_ = unix.Setpriority(unix.PRIO_PROCESS, 0, 10) // detached, low priority
 	e := env.FromOS()
 	release, ok := refreshlock.TryAcquire(e.StateDir)
 	if !ok {
 		return 0 // another refresh is running
 	}
 	defer release()
+	hook.PruneSnapshots(e.StateDir, 7*24*time.Hour, time.Now())
 	if _, err := collect(e, false); err != nil {
 		fmt.Fprintf(stderr, "%s: refresh: %v\n", env.AppName, err)
 		return 1

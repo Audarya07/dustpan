@@ -13,8 +13,9 @@ import (
 )
 
 // runHook never writes to stderr and always returns 0.
-func runHook(args []string, stdin io.Reader, stdout io.Writer) int {
-	time.AfterFunc(500*time.Millisecond, func() { os.Exit(0) })
+func runHook(args []string, stdin io.Reader, stdout io.Writer) (code int) {
+	defer func() { _ = recover(); code = 0 }()
+	time.AfterFunc(450*time.Millisecond, func() { os.Exit(0) })
 	if len(args) == 0 {
 		return 0
 	}

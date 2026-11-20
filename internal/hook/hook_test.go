@@ -331,3 +331,46 @@ func TestBinaryBudgetAndSilence(t *testing.T) {
 		t.Fatalf("too slow: %v", best)
 	}
 }
+
+func TestCompactKeepsSnapshotBaseline(t *testing.T) {
+	f := testDeps(t)
+	run := func(ev, src string) {
+		in := `{"session_id":"s1","cwd":"/repo","source":"` + src + `"}`
+		must(t, hook.Handle(ctx(), f.Deps, ev, strings.NewReader(in), io.Discard))
+	}
+	run("SessionStart", "startup")
+	must(t, os.WriteFile(filepath.Join(f.tmp, "before-compact.bin"), []byte("x"), 0o644))
+	run("SessionStart", "compact")
+	run("SessionEnd", "")
+	rs, _ := f.Store.Load()
+	wantPaths(t, rs, receipts.KindWeakCreated, filepath.Join(f.tmp, "before-compact.bin"))
+}
+
+func TestSessionEndProcsFailureSkipsWeak(t *testing.T) {
+	f := testDeps(t)
+	must(t, hook.Handle(ctx(), f.Deps, "SessionStart", strings.NewReader(payload("SessionStart", "s1", "/repo", "", "")), io.Discard))
+	must(t, os.WriteFile(filepath.Join(f.tmp, "n.bin"), []byte("x"), 0o644))
+	f.Deps.Procs = func(context.Context) (*proc.Snapshot, error) { return nil, os.ErrInvalid }
+	must(t, hook.Handle(ctx(), f.Deps, "SessionEnd", strings.NewReader(payload("SessionEnd", "s1", "/repo", "", "")), io.Discard))
+	rs, _ := f.Store.Load()
+	wantPaths(t, rs, receipts.KindWeakCreated)
+}
+
+func TestPruneSnapshots(t *testing.T) {
+	state := t.TempDir()
+	dir := filepath.Join(state, "snapshots")
+	must(t, os.MkdirAll(dir, 0o700))
+	now := time.Now()
+	for name, age := range map[string]time.Duration{"old.json": 8 * 24 * time.Hour, "new.json": time.Hour} {
+		p := filepath.Join(dir, name)
+		must(t, os.WriteFile(p, nil, 0o600))
+		must(t, os.Chtimes(p, now.Add(-age), now.Add(-age)))
+	}
+	hook.PruneSnapshots(state, 7*24*time.Hour, now)
+	if _, err := os.Stat(filepath.Join(dir, "old.json")); !os.IsNotExist(err) {
+		t.Error("old snapshot kept")
+	}
+	if _, err := os.Stat(filepath.Join(dir, "new.json")); err != nil {
+		t.Error("new snapshot removed")
+	}
+}
