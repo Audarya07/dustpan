@@ -220,3 +220,16 @@ func TestSingleFileSecretShowsItemPath(t *testing.T) {
 		t.Errorf("details:\n%s", det.String())
 	}
 }
+
+// Details-only items never reach the compact view, secrets included.
+func TestCompactSkipsDetailsOnlySecrets(t *testing.T) {
+	weak := offer(item.Scratch, "/tmp/maybe.json", 10)
+	weak.Evidence = item.Evidence{Source: "snapshot", Weak: []string{"s1"}}
+	weak.Decision = item.Decision{Class: item.LeftAlone, DetailsOnly: true, Reasons: []string{"only weak evidence an agent made this"}}
+	weak.Secrets = []secrets.Finding{{Line: 1, RuleID: "aws-access-token", Masked: "AKIA…7Q2X"}}
+	var buf bytes.Buffer
+	report.RenderCompact(&buf, scan.Result{GeneratedAt: fixedTime, Items: []item.Item{weak}}, false)
+	if !strings.HasPrefix(buf.String(), "Nothing left behind.") {
+		t.Fatalf("compact:\n%s", buf.String())
+	}
+}

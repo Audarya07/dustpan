@@ -33,24 +33,26 @@ func collectScratchCandidates(ctx context.Context, c Context, st *runState) []ca
 	for _, d := range e.TmpDirs {
 		tmps = append(tmps, e.Canon(d))
 	}
-	// Latest receipt per canonical path, dropping anything that must never be
-	// touched BEFORE nesting is considered: a receipt for "/tmp" itself must
-	// not absorb (and hide) the real scratch inside it.
-	latest := map[string]receipts.Receipt{}
-	for _, r := range CanonReceipts(e, c.Index.CreatedUnder(tmps)) {
-		if r.Path == "" {
-			continue
-		}
-		if !withinAny(r.Path, tmps) || containsPath(tmps, r.Path) {
-			continue
+	// usable keeps receipts for existing paths strictly inside a tmp dir,
+	// dropping anything that must never be touched BEFORE nesting is
+	// considered: a receipt for "/tmp" itself must not absorb (and hide) the
+	// real scratch inside it.
+	usable := func(r receipts.Receipt) bool {
+		if r.Path == "" || !withinAny(r.Path, tmps) || containsPath(tmps, r.Path) {
+			return false
 		}
 		if never, _ := safety.NeverTouch(r.Path, e, st.checkoutsFor(item.Scratch), c.Config.ExtraNeverTouch); never {
-			continue
+			return false
 		}
-		if _, err := os.Lstat(r.Path); err != nil {
-			continue
+		_, err := os.Lstat(r.Path)
+		return err == nil
+	}
+	// Latest receipt per canonical path.
+	latest := map[string]receipts.Receipt{}
+	for _, r := range CanonReceipts(e, c.Index.CreatedUnder(tmps)) {
+		if usable(r) {
+			latest[r.Path] = r
 		}
-		latest[r.Path] = r
 	}
 	paths := make([]string, 0, len(latest))
 	for p := range latest {
@@ -87,7 +89,55 @@ func collectScratchCandidates(ctx context.Context, c Context, st *runState) []ca
 			Category: item.Scratch, Path: p, Evidence: ev,
 		}})
 	}
+	return append(out, weakScratchCandidates(c, latest, usable)...)
+}
+
+// weakScratchCandidates lists /tmp entries known only from session snapshots
+// ("created while sessions X, Y ran"). They are shown in --details and the
+// safety engine never offers them. Paths covered by a strong receipt (the
+// path itself or a receipted folder around it) are skipped.
+func weakScratchCandidates(c Context, strong map[string]receipts.Receipt, usable func(receipts.Receipt) bool) []candidate {
+	var tmps []string
+	for _, d := range c.Env.TmpDirs {
+		tmps = append(tmps, c.Env.Canon(d))
+	}
+	byPath := map[string]*item.Evidence{}
+	var order []string
+	for _, r := range CanonReceipts(c.Env, c.Index.WeakCreatedUnder(tmps)) {
+		if !usable(r) || coveredByStrong(r.Path, strong) {
+			continue
+		}
+		ev := byPath[r.Path]
+		if ev == nil {
+			ev = &item.Evidence{Source: "snapshot", Agent: r.Agent}
+			byPath[r.Path] = ev
+			order = append(order, r.Path)
+		}
+		for _, id := range append([]string{r.SessionID}, r.Sessions...) {
+			if id != "" && !containsPath(ev.Weak, id) {
+				ev.Weak = append(ev.Weak, id)
+			}
+		}
+	}
+	sort.Strings(order)
+	var out []candidate
+	for _, p := range order {
+		ev := *byPath[p]
+		if len(ev.Weak) == 0 {
+			ev.Weak = []string{"unknown"}
+		}
+		out = append(out, candidate{it: item.Item{Category: item.Scratch, Path: p, Evidence: ev}})
+	}
 	return out
+}
+
+func coveredByStrong(path string, strong map[string]receipts.Receipt) bool {
+	for p, r := range strong {
+		if p == path || (r.IsDir && receipts.Within(path, p)) {
+			return true
+		}
+	}
+	return false
 }
 
 // scratchEvidence turns a receipt into evidence. A path that already existed

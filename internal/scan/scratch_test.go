@@ -1,17 +1,20 @@
 package scan_test
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/Audarya07/agent-receipts/internal/cmdparse"
 	"github.com/Audarya07/agent-receipts/internal/item"
 	"github.com/Audarya07/agent-receipts/internal/receipts"
+	"github.com/Audarya07/agent-receipts/internal/report"
 	"github.com/Audarya07/agent-receipts/internal/scan"
 	"github.com/Audarya07/agent-receipts/internal/secrets"
 )
@@ -276,5 +279,52 @@ func TestScratchWithoutBirthTime(t *testing.T) {
 	wantItem(t, res, file, item.Offer)
 	if it := wantItem(t, res, copied, item.LeftAlone); !it.Decision.DetailsOnly || it.Evidence.Strong {
 		t.Fatalf("cp'd dir without birth time: %+v", it)
+	}
+}
+
+// R29: snapshot (weak) attribution for /tmp is listed in --details only.
+func TestScratchWeakReceiptIsDetailsOnly(t *testing.T) {
+	h := newFixtureHome(t)
+	h.write(h.tmp, "maybe.json", `{"aws_access_key_id":"AKIAZ7Q2XJ4K3M5N6Q2X"}`)
+	h.write(h.tmp, "strong.bin", "x")
+	weak := func(p string) receipts.Receipt {
+		return receipts.Receipt{Kind: receipts.KindWeakCreated, Path: p, SessionID: "s1",
+			Sessions: []string{"s1", "s2"}, Source: "snapshot", At: time.Now()}
+	}
+	ix := h.index(
+		weak(h.tmpPath("maybe.json")),
+		weak(h.tmpPath("strong.bin")), created(h.tmpPath("strong.bin"), false, "s1"),
+		weak(h.tmpPath("gone")),
+		weak(h.tmp),
+	)
+	c := h.context(ix)
+	sc, err := secrets.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.Secrets = sc
+	res := mustRun(t, c)
+	it := wantItem(t, res, h.tmpPath("maybe.json"), item.LeftAlone)
+	if !it.Decision.DetailsOnly || it.Evidence.Strong || it.Evidence.Source != "snapshot" ||
+		len(it.Evidence.Weak) != 2 || len(it.Secrets) != 1 {
+		t.Fatalf("weak item: %+v", it)
+	}
+	if s := wantItem(t, res, h.tmpPath("strong.bin"), item.Offer); !s.Evidence.Strong {
+		t.Fatalf("strong item downgraded: %+v", s.Evidence)
+	}
+	wantNoItem(t, res, h.tmpPath("gone"))
+	wantNoItem(t, res, h.tmp)
+	if n := len(res.Items); n != 2 {
+		t.Fatalf("items = %d: %+v", n, res.Items)
+	}
+	var buf bytes.Buffer
+	report.RenderCompact(&buf, res, false)
+	if strings.Contains(buf.String(), "maybe.json") || strings.Contains(buf.String(), "AKIA") {
+		t.Fatalf("weak item in compact report:\n%s", buf.String())
+	}
+	buf.Reset()
+	report.RenderDetails(&buf, res, false)
+	if !strings.Contains(buf.String(), "maybe.json") || !strings.Contains(buf.String(), "(details only)") {
+		t.Fatalf("weak item missing from details:\n%s", buf.String())
 	}
 }

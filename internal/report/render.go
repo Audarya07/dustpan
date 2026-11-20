@@ -173,13 +173,14 @@ func RenderCompact(w io.Writer, r scan.Result, color bool) {
 	p := painter(color)
 	var offers, left, secret []item.Item
 	for _, it := range r.Items {
+		if it.Decision.DetailsOnly { // --details only, secrets included
+			continue
+		}
 		switch it.Decision.Class {
 		case item.Offer:
 			offers = append(offers, it)
 		case item.LeftAlone:
-			if !it.Decision.DetailsOnly {
-				left = append(left, it)
-			}
+			left = append(left, it)
 		}
 		if hasSecrets(it) && (it.Decision.Class == item.Offer || it.Decision.Class == item.LeftAlone) {
 			secret = append(secret, it)

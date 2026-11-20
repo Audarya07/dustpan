@@ -130,6 +130,20 @@ func (ix *Index) CreatedUnder(dirs []string) []Receipt {
 	return out
 }
 
+// WeakCreatedUnder returns weak receipts whose path is inside any of dirs.
+func (ix *Index) WeakCreatedUnder(dirs []string) []Receipt {
+	var out []Receipt
+	for _, r := range ix.weak {
+		for _, d := range dirs {
+			if Within(r.Path, d) {
+				out = append(out, r)
+				break
+			}
+		}
+	}
+	return out
+}
+
 // CreatorExact returns the latest strong receipt whose Path is exactly path.
 // Unlike StrongCreator it never matches an ancestor directory receipt.
 func (ix *Index) CreatorExact(path string) (Receipt, bool) {
