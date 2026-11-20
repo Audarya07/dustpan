@@ -6,6 +6,8 @@ Reports what coding agents left behind on your machine, and which agent session 
 
 Agents like Claude Code leave abandoned git worktrees, finished job folders, build binaries and scratch files in `/tmp`, and old transcripts. Some of it holds secrets: an `.env` copied into a forgotten worktree, cloud credentials in a job's temp folder. This tool finds it, shows how much space it takes, and tells you which leftovers contain secrets. It records receipts, so "this looks old" becomes "the session that made this ended 3 days ago and nothing has touched it since".
 
+Codex and Cursor folders are scanned too, but only Claude Code sessions get receipts in this version.
+
 ```
 Your agents left 3.1 GB behind in 14 places.  2 contain secrets.
 
@@ -57,8 +59,8 @@ The hooks do nothing if the `agent-receipts` binary is not on your `PATH`.
 - Worktrees with uncommitted work, non-regenerable ignored files (like `.env`), or commits that exist nowhere else are never offered.
 - Only items with proof an agent created them are offered. Your own worktrees are not listed.
 - Your code and config are never touched: main checkouts, files inside git checkouts, agent settings and memory, shell dotfiles.
-- Deletions go to the Trash, so they can be undone. The exception is items containing secrets (and items with no same-disk Trash): a trashed secret is still readable, so those are offered for permanent deletion behind a typed confirmation. It never empties the Trash.
-- Secrets are always masked (first 4 and last 4 characters). Receipts and output hold paths and timestamps only, never file contents or full secret values. Deleting a secret does not undo a leak: copies may exist in backups or provider logs.
+- Deletions go to the Trash, so they can be undone. For items containing secrets, permanent deletion (you type `delete`) is offered alongside a "trash anyway" choice, because a trashed secret is still readable. Where an item's disk has no Trash, permanent deletion is the only option. It never empties the Trash.
+- Secrets are always masked (only the ends are shown). Receipts and output hold paths and timestamps only, never file contents or full secret values. Deleting a secret does not undo a leak: copies may exist in backups or provider logs.
 
 ## Commands
 
@@ -70,7 +72,7 @@ The hooks do nothing if the `agent-receipts` binary is not on your `PATH`.
 
 ## Where state lives
 
-`$XDG_STATE_HOME/agent-receipts/`, by default `~/.local/state/agent-receipts/`: receipts, cached report, stats. Folders are `0700` and files `0600`.
+`$XDG_STATE_HOME/agent-receipts/`, by default `~/.local/state/agent-receipts/`: receipts, cached report, stats, nudge state, reconstruction progress, session snapshots and lock files. Folders are `0700` and files `0600`.
 
 ## No telemetry
 
@@ -78,4 +80,4 @@ It makes no network connections, ever. Nothing is sent anywhere.
 
 ## Uninstall
 
-Remove the plugin (`/plugin uninstall agent-receipts@agent-receipts`), delete the binary, and delete the state folder: `rm -r ~/.local/state/agent-receipts`.
+Remove the plugin (`/plugin uninstall agent-receipts@agent-receipts`, then `/plugin marketplace remove agent-receipts`), delete the binary, and delete the state folder: `rm -r ~/.local/state/agent-receipts`.
