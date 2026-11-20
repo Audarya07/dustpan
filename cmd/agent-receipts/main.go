@@ -32,6 +32,10 @@ func run(args []string, stdout, stderr io.Writer) int {
 			return 1
 		}
 		return 0
+	case "report":
+		return runReport(args[1:], stdout, stderr)
+	case "refresh": // hidden: update cache and stats without output
+		return runRefresh(stderr)
 	default:
 		fmt.Fprintf(stderr, "%s: unknown command %q\n", env.AppName, args[0])
 		usage(stderr)

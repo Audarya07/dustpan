@@ -1,0 +1,17 @@
+Your agents left 3.1 GB behind in 15 places.  2 contain secrets.
+
+■ Secrets in leftovers  — rotate these first
+  .env ×3    values   ~/repo/.claude/worktrees/x/.env
+  AKIA…7Q2X  AWS key  ~/.claude/jobs/7f3a91c2/tmp/acct_prod.json
+  Deleting the file doesn't undo a leak — rotate the key.
+
+■ Dead agent data                      3.1 GB
+  Abandoned worktrees           1.6 GB   2, no unsaved work
+  Old transcripts & logs        1.0 GB   older than 30d
+  Finished / stale agent jobs   318 MB   4 folders
+  Scratch files in /tmp         180 MB   8 files
+
+■ Still in use — left alone
+  2 worktrees on feature-1234   session active 4 min ago
+
+→ clean   → report --details
