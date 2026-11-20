@@ -122,8 +122,6 @@ func TestCleanTrashesKeepsAndSkipsRest(t *testing.T) {
 	if len(f.calls) != 1 {
 		t.Fatalf("calls = %v", f.calls)
 	}
-	st := stats.Load(f.deps(t).StateDir)
-	_ = st
 }
 
 func TestCleanStatsRecorded(t *testing.T) {
@@ -232,7 +230,9 @@ func TestCleanSkipMessages(t *testing.T) {
 		return it, nil
 	}}
 	ui := &fakeUI{answers: []string{"d"}}
-	Run(context.Background(), f.deps(t), ui)
+	if _, err := Run(context.Background(), f.deps(t), ui); err != nil {
+		t.Fatal(err)
+	}
 	if !strings.Contains(ui.out.String(), "skipped: session active 1 min ago") {
 		t.Fatal(ui.out.String())
 	}
@@ -316,5 +316,64 @@ func TestCleanEndsWithTrashReminder(t *testing.T) {
 	}
 	if !strings.Contains(ui.out.String(), "empty it to free the space") {
 		t.Fatal(ui.out.String())
+	}
+}
+
+func TestCleanFlippedUnregisterSkips(t *testing.T) {
+	plain := mk(t, "a", 5)
+	unreg := item.Item{ID: "u", Category: item.Worktree, Path: "/gone/wt", Repo: "/repo", Unregister: true,
+		Decision: item.Decision{Class: item.Offer}, Fingerprint: "f"}
+	for name, c := range map[string]struct {
+		it   item.Item
+		ans  string
+		flip func(item.Item) item.Item
+	}{
+		"u-but-now-present": {unreg, "u", func(i item.Item) item.Item { i.Unregister = false; return i }},
+		"d-but-now-gone":    {plain, "d", func(i item.Item) item.Item { i.Unregister = true; return i }},
+		"category-changed":  {plain, "d", func(i item.Item) item.Item { i.Category = item.Worktree; return i }},
+	} {
+		t.Run(name, func(t *testing.T) {
+			f := &fakes{items: []item.Item{c.it}, recheck: func(i item.Item) (item.Item, error) { return c.flip(i), nil }}
+			ui := &fakeUI{answers: []string{c.ans}}
+			sum, err := Run(context.Background(), f.deps(t), ui)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(f.calls) != 0 || sum.Skipped != 1 || !strings.Contains(ui.out.String(), "changed since the report") {
+				t.Fatalf("calls=%v sum=%+v out=%s", f.calls, sum, ui.out.String())
+			}
+		})
+	}
+}
+
+func TestCleanUnregisterAndPermanentAreRecheckGated(t *testing.T) {
+	gone := func(item.Item) (item.Item, error) { return item.Item{}, fmt.Errorf("x: %w", os.ErrNotExist) }
+	unreg := item.Item{ID: "u", Category: item.Worktree, Path: "/gone/wt", Repo: "/repo", Unregister: true,
+		Decision: item.Decision{Class: item.Offer}, Fingerprint: "f"}
+	f := &fakes{items: []item.Item{unreg}, recheck: gone}
+	if _, err := Run(context.Background(), f.deps(t), &fakeUI{answers: []string{"u"}}); err != nil {
+		t.Fatal(err)
+	}
+	if len(f.calls) != 0 {
+		t.Fatalf("unregister not gated: %v", f.calls)
+	}
+	f = &fakes{items: []item.Item{withSecret(mk(t, "a", 5))}, recheck: gone}
+	sum, err := Run(context.Background(), f.deps(t), &fakeUI{answers: []string{"p"}, confirms: []bool{true}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(f.calls) != 0 || sum.Skipped != 1 {
+		t.Fatalf("permanent not gated: %v %+v", f.calls, sum)
+	}
+}
+
+func TestCleanDeclinedConfirmCountsAsSkipped(t *testing.T) {
+	f := &fakes{items: []item.Item{withSecret(mk(t, "a", 5))}}
+	sum, err := Run(context.Background(), f.deps(t), &fakeUI{answers: []string{"p"}, confirms: []bool{false}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sum.Skipped != 1 || sum.Kept != 0 {
+		t.Fatalf("sum = %+v", sum)
 	}
 }

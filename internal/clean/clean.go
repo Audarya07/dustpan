@@ -13,6 +13,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/Audarya07/agent-receipts/internal/env"
 	"github.com/Audarya07/agent-receipts/internal/item"
 	"github.com/Audarya07/agent-receipts/internal/report"
 	"github.com/Audarya07/agent-receipts/internal/scan"
@@ -20,7 +21,7 @@ import (
 )
 
 // ErrNoTerminal is returned when clean is run without a real terminal.
-var ErrNoTerminal = errors.New("clean needs a terminal. Run 'agent-receipts clean' yourself in a terminal window.")
+var ErrNoTerminal = fmt.Errorf("clean needs a terminal. Run '%s clean' yourself in a terminal window.", env.AppName)
 
 // UI is the human side of clean.
 type UI interface {
@@ -213,7 +214,8 @@ func recheck(ctx context.Context, d Deps, it item.Item) (item.Item, string) {
 			reason = fresh.Decision.Reasons[0]
 		}
 		return fresh, "skipped: " + reason
-	case fresh.Fingerprint != it.Fingerprint, fresh.Path != it.Path:
+	case fresh.Fingerprint != it.Fingerprint, fresh.Path != it.Path,
+		fresh.Unregister != it.Unregister, fresh.Category != it.Category:
 		return fresh, "skipped: changed since the report"
 	}
 	return fresh, ""
@@ -228,8 +230,8 @@ func act(ctx context.Context, d Deps, ui UI, it item.Item, ans string, sum *Summ
 			return err
 		}
 		if !ok {
-			ui.Printf("  not confirmed; kept\n")
-			sum.Kept++
+			ui.Printf("  not confirmed; skipped\n")
+			sum.Skipped++
 			return nil
 		}
 	}
@@ -241,7 +243,13 @@ func act(ctx context.Context, d Deps, ui UI, it item.Item, ans string, sum *Summ
 		return nil
 	}
 
-	if fresh.Unregister {
+	switch ans {
+	case "u":
+		if !fresh.Unregister {
+			ui.Printf("  skipped: changed since the report\n")
+			sum.Skipped++
+			return nil
+		}
 		if err := d.RemoveWorktree(fresh.Repo, fresh.Path); err != nil {
 			ui.Printf("  skipped: couldn't unregister (%v) — run `git worktree prune`\n", err)
 			sum.Skipped++
@@ -250,13 +258,14 @@ func act(ctx context.Context, d Deps, ui UI, it item.Item, ans string, sum *Summ
 		ui.Printf("  unregistered\n")
 		sum.Unregistered++
 		return nil
-	}
-
-	switch ans {
 	case "p":
 		expect, err := os.Lstat(fresh.Path)
-		if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
 			ui.Printf("  skipped: no longer there\n")
+			sum.Skipped++
+			return nil
+		} else if err != nil {
+			ui.Printf("  skipped: couldn't re-check (%v)\n", err)
 			sum.Skipped++
 			return nil
 		}
@@ -268,7 +277,12 @@ func act(ctx context.Context, d Deps, ui UI, it item.Item, ans string, sum *Summ
 		ui.Printf("  permanently deleted\n")
 		sum.Deleted++
 		sum.BytesDeleted += fresh.Size
-	default: // "d" or "t"
+	case "d", "t":
+		if fresh.Unregister {
+			ui.Printf("  skipped: changed since the report\n")
+			sum.Skipped++
+			return nil
+		}
 		dest, err := d.Trash.Move(fresh.Path)
 		if err != nil {
 			if errors.Is(err, syscall.EXDEV) {
@@ -282,6 +296,9 @@ func act(ctx context.Context, d Deps, ui UI, it item.Item, ans string, sum *Summ
 		ui.Printf("  moved to Trash (%s)\n", dest)
 		sum.Trashed++
 		sum.BytesTrashed += fresh.Size
+	default:
+		sum.Skipped++
+		return nil
 	}
 
 	if fresh.Category == item.Worktree {
