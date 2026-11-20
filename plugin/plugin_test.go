@@ -61,14 +61,14 @@ func TestManifests(t *testing.T) {
 		Author                              struct{ Name string }
 	}
 	mustDecode(t, ".claude-plugin/plugin.json", &p)
-	if p.Name != "dustpan" || p.Version != "0.1.0" || p.License != "MIT" || p.Author.Name != "Audarya Uttarwar" || p.Description == "" {
+	if p.Name != "dustpan" || p.Version != "0.1.1" || p.License != "MIT" || p.Author.Name != "Audarya Uttarwar" || p.Description == "" {
 		t.Errorf("plugin.json: %+v", p)
 	}
 	var m struct {
 		Plugins []struct{ Name, Source string }
 	}
-	mustDecode(t, ".claude-plugin/marketplace.json", &m)
-	if len(m.Plugins) != 1 || m.Plugins[0].Name != "dustpan" || m.Plugins[0].Source != "./" {
+	mustDecode(t, "../.claude-plugin/marketplace.json", &m) // repo root, so `/plugin marketplace add Audarya07/dustpan` works
+	if len(m.Plugins) != 1 || m.Plugins[0].Name != "dustpan" || m.Plugins[0].Source != "./plugin" {
 		t.Errorf("marketplace.json: %+v", m)
 	}
 }

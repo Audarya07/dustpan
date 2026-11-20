@@ -1,6 +1,6 @@
 {
   "name": "dustpan",
-  "description": "Local marketplace for the dustpan plugin",
+  "description": "Marketplace for the dustpan Claude Code plugin",
   "owner": {
     "name": "Audarya Uttarwar"
   },
@@ -8,8 +8,7 @@
     {
       "name": "dustpan",
       "description": "Reports what coding agents left behind on this machine and which session created it.",
-      "version": "0.1.0",
-      "source": "./",
+      "source": "./plugin",
       "author": {
         "name": "Audarya Uttarwar"
       }
