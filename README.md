@@ -45,6 +45,14 @@ Install it:
 go install github.com/Audarya07/dustpan/cmd/dustpan@latest
 ```
 
+`go install` puts the binary in Go's bin folder (usually `~/go/bin`). If you get `command not found: dustpan` afterwards, that folder isn't on your `PATH` yet. Add it once (for zsh; use `~/.bashrc` for bash):
+
+```sh
+echo 'export PATH="$PATH:$(go env GOPATH)/bin"' >> ~/.zshrc
+source ~/.zshrc
+dustpan version
+```
+
 Run a report. This only reads, and takes a few seconds:
 
 ```sh
