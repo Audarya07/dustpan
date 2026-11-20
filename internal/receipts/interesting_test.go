@@ -1,6 +1,7 @@
 package receipts_test
 
 import (
+	"runtime"
 	"testing"
 
 	"github.com/Audarya07/agent-receipts/internal/receipts"
@@ -36,5 +37,15 @@ func TestWithin(t *testing.T) {
 	}
 	if !receipts.Within("/a", "/") {
 		t.Fatal("everything is within /")
+	}
+}
+
+func TestWithinFold(t *testing.T) {
+	if !receipts.WithinFold("/a/b/c", "/a/b") || receipts.WithinFold("/a/bc", "/a/b") {
+		t.Fatal("WithinFold must behave like Within for same-case paths")
+	}
+	got := receipts.WithinFold("/A/B/c", "/a/b")
+	if want := runtime.GOOS == "darwin"; got != want {
+		t.Fatalf("WithinFold case variant = %v, want %v on %s", got, want, runtime.GOOS)
 	}
 }

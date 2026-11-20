@@ -164,10 +164,11 @@ func (s *Snapshot) Alive(pid int, start time.Time) bool {
 	return d <= time.Second
 }
 
-// InUse reports whether any open file or cwd lies within path.
+// InUse reports whether any open file or cwd lies within path, ignoring case
+// on macOS (receipts.WithinFold, the same fold as safety.NeverTouch).
 func (s *Snapshot) InUse(path string) (bool, string) {
 	for _, o := range s.Open {
-		if !receipts.Within(o, path) {
+		if !receipts.WithinFold(o, path) {
 			continue
 		}
 		if pid, ok := s.OpenBy[o]; ok && pid > 0 {

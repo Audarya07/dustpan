@@ -3,6 +3,7 @@ package proc_test
 import (
 	"context"
 	"os"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -135,5 +136,20 @@ func TestAgentAncestorRealWorldComm(t *testing.T) {
 		if ok != (c.want != "") || agent != c.want {
 			t.Errorf("%q: got %q %v, want %q", c.comm, agent, ok, c.want)
 		}
+	}
+}
+
+// R28: macOS paths are case-insensitive, so an open file under a differently
+// cased item path is still in use.
+func TestInUseCaseInsensitiveOnDarwin(t *testing.T) {
+	if runtime.GOOS != "darwin" {
+		t.Skip("case-insensitive filesystems only")
+	}
+	s := &proc.Snapshot{Open: []string{"/private/tmp/build/out.bin"}}
+	if used, _ := s.InUse("/private/tmp/BUILD"); !used {
+		t.Fatal("/private/tmp/BUILD holds an open file (build/out.bin)")
+	}
+	if used, _ := s.InUse("/private/tmp/buil"); used {
+		t.Fatal("prefix without separator must not match")
 	}
 }

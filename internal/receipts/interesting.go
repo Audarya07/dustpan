@@ -2,6 +2,7 @@ package receipts
 
 import (
 	"path/filepath"
+	"runtime"
 	"strings"
 )
 
@@ -17,6 +18,21 @@ func Within(path, dir string) bool {
 		return strings.HasPrefix(p, "/")
 	}
 	return strings.HasPrefix(p, d+"/")
+}
+
+// Fold lowercases a path on macOS, whose default filesystem is
+// case-insensitive, and returns it unchanged elsewhere. Folding only adds
+// matches, so safety comparisons that fold fail closed.
+func Fold(p string) string {
+	if runtime.GOOS == "darwin" {
+		return strings.ToLower(p)
+	}
+	return p
+}
+
+// WithinFold is Within after folding both paths with Fold.
+func WithinFold(path, dir string) bool {
+	return Within(Fold(path), Fold(dir))
 }
 
 func abs(path, cwd string) string {

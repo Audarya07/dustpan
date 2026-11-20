@@ -5,7 +5,6 @@ package safety
 import (
 	"fmt"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"time"
 
@@ -50,15 +49,9 @@ func variants(e env.Env, p string) []string {
 	return out
 }
 
-// fold lowercases paths on macOS, whose default filesystem is case-insensitive.
-// Folding only adds matches, so it fails closed. Every comparison in NeverTouch
+// fold is receipts.Fold (lowercase on macOS). Every comparison in NeverTouch
 // goes through variants, so paths and roots are always folded alike.
-func fold(p string) string {
-	if runtime.GOOS == "darwin" {
-		return strings.ToLower(p)
-	}
-	return p
-}
+func fold(p string) string { return receipts.Fold(p) }
 
 // agentContainers are agent-owned folders under home: each one and every
 // ancestor is never-touch; entries strictly inside are judged by other rules.
