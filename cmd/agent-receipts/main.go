@@ -2,11 +2,14 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
 
 	"github.com/Audarya07/agent-receipts/internal/env"
+	"github.com/Audarya07/agent-receipts/internal/receipts"
+	"github.com/Audarya07/agent-receipts/internal/transcripts"
 )
 
 func main() {
@@ -21,6 +24,13 @@ func run(args []string, stdout, stderr io.Writer) int {
 	switch args[0] {
 	case "version":
 		fmt.Fprintf(stdout, "%s %s\n", env.AppName, env.Version)
+		return 0
+	case "reconstruct": // hidden: background continuation of day-one reconstruction
+		e := env.FromOS()
+		if _, err := transcripts.Reconstruct(context.Background(), e, receipts.Open(e.StateDir)); err != nil {
+			fmt.Fprintf(stderr, "%s: reconstruct: %v\n", env.AppName, err)
+			return 1
+		}
 		return 0
 	default:
 		fmt.Fprintf(stderr, "%s: unknown command %q\n", env.AppName, args[0])

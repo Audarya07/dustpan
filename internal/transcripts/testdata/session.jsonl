@@ -1,0 +1,9 @@
+{"type":"mode","mode":"default","sessionId":"sess-1","timestamp":"2026-11-10T09:00:00.000Z"}
+{"type":"ai-title","aiTitle":"nightly db backup","sessionId":"sess-1"}
+this line is not json {{{
+{"type":"user","sessionId":"sess-1","timestamp":"2026-11-10T09:00:01.000Z","cwd":"@CWD@","message":{"role":"user","content":"please look at my AWS bill"}}
+{"type":"assistant","sessionId":"sess-1","timestamp":"2026-11-10T09:00:05.123Z","cwd":"@CWD@","message":{"content":[{"type":"text","text":"sure"},{"type":"tool_use","id":"t1","name":"Write","input":{"file_path":"@TMP@/alpha.go","content":"package main"}}]}}
+{"type":"assistant","sessionId":"sess-1","timestamp":"2026-11-10T09:00:10.000Z","cwd":"@CWD@","message":{"content":[{"type":"tool_use","id":"t2","name":"Write","input":{"file_path":"@CWD@/inside.go","content":"package inside"}}]}}
+{"type":"assistant","sessionId":"sess-1","timestamp":"2026-11-10T09:00:20.000Z","cwd":"@CWD@","message":{"content":[{"type":"tool_use","id":"t3","name":"Bash","input":{"command":"go build -o @TMP@/my-bin ./cmd/gs","description":"build"}}]}}
+{"type":"assistant","sessionId":"sess-1","timestamp":"2026-11-10T09:00:30.000Z","cwd":"@CWD@","message":{"content":[{"type":"tool_use","id":"t4","name":"Write","input":{"file_path":"@TMP@/creds.txt","content":"aws_access_key_id=AKIAZ7Q2XJ4K3M5N6Q2X"}}]}}
+{"type":"user","sessionId":"sess-1","timestamp":"2026-11-10T09:00:40.000Z","cwd":"@CWD@","message":{"content":[{"type":"tool_result","tool_use_id":"t4","content":"AKIAZ7Q2XJ4K3M5N6Q2X written"}]}}
