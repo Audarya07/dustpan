@@ -5,9 +5,11 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 
+	"github.com/Audarya07/agent-receipts/internal/cmdparse"
 	"github.com/Audarya07/agent-receipts/internal/item"
 	"github.com/Audarya07/agent-receipts/internal/receipts"
 	"github.com/Audarya07/agent-receipts/internal/scan"
@@ -86,11 +88,16 @@ func TestScratchReceiptOlderThanPathIsNotOfferable(t *testing.T) {
 	if it.Evidence.Strong || len(it.Evidence.Weak) == 0 || !it.Decision.DetailsOnly {
 		t.Fatalf("want weak details-only, got %+v %+v", it.Evidence, it.Decision)
 	}
-	// Within the 2 minute slack it stays strong.
-	if err := os.Chtimes(old, at.Add(-time.Minute), at.Add(-time.Minute)); err != nil {
+	// Within the 2 minute slack it stays strong. A fresh file: on macOS
+	// moving mtime back also moves the birth time back, and never forward.
+	slack := h.tmpPath("slack-file")
+	h.write(h.tmp, "slack-file", "x")
+	if err := os.Chtimes(slack, at.Add(-time.Minute), at.Add(-time.Minute)); err != nil {
 		t.Fatal(err)
 	}
-	wantItem(t, mustRun(t, h.context(h.index(r))), old, item.Offer)
+	r2 := created(slack, false, "s1")
+	r2.At = at
+	wantItem(t, mustRun(t, h.context(h.index(r2))), slack, item.Offer)
 }
 
 func TestScratchLiveSessionKeepsItsFiles(t *testing.T) {
@@ -169,5 +176,105 @@ func TestScratchFileItemIsSecretScanned(t *testing.T) {
 	it := wantItem(t, mustRun(t, c), h.tmpPath("acct.json"), item.Offer)
 	if len(it.Secrets) != 1 || it.Secrets[0].Path != "" || it.SecretsPartial {
 		t.Fatalf("want 1 finding on the file itself, got %+v partial=%v", it.Secrets, it.SecretsPartial)
+	}
+}
+
+// fromCommand turns a Bash command into receipts the way the hook does.
+func fromCommand(cmd, cwd, session string, at time.Time) []receipts.Receipt {
+	var rs []receipts.Receipt
+	for _, o := range cmdparse.OutputPaths(cmd, cwd) {
+		rs = append(rs, receipts.Receipt{Kind: receipts.KindCreated, Path: o.Path, IsDir: o.IsDir,
+			Via: o.Via, SessionID: session, Source: "hook", At: at})
+	}
+	return rs
+}
+
+// backdate makes path look created at when. On macOS moving the mtime back
+// moves the birth time back too; elsewhere the birth time is faked.
+func backdate(t *testing.T, path string, when time.Time) {
+	t.Helper()
+	if err := os.Chtimes(path, when, when); err != nil {
+		t.Fatal(err)
+	}
+	if runtime.GOOS == "darwin" {
+		if bt, ok := scan.RealBirthTime(path); !ok || bt.After(when.Add(time.Second)) {
+			t.Fatalf("darwin birth time not backdated: %v %v", bt, ok)
+		}
+		return
+	}
+	t.Cleanup(scan.SetBirthTime(func(p string) (time.Time, bool) {
+		if p == path {
+			return when, true
+		}
+		return time.Time{}, false
+	}))
+}
+
+// R26: copying into a week-old user folder bumps its mtime, but the folder
+// is not the agent's.
+func TestScratchCpIntoOldUserDirNotOffered(t *testing.T) {
+	h := newFixtureHome(t)
+	userdir := h.mkdir(h.tmpPath("userdir"))
+	h.write(userdir, "mine.txt", "x")
+	backdate(t, userdir, time.Now().Add(-7*24*time.Hour))
+	h.write(userdir, "a.txt", "x") // the agent's cp lands; userdir mtime is now
+	rs := fromCommand("cp a.txt "+userdir, h.repo, "s1", time.Now())
+	if len(rs) != 1 {
+		t.Fatalf("receipts: %+v", rs)
+	}
+	res := mustRun(t, h.context(h.index(rs...)))
+	if it, ok := find(res, userdir); ok && (it.Decision.Class == item.Offer || !it.Decision.DetailsOnly) {
+		t.Fatalf("old user dir offered or shown: %+v", it)
+	}
+}
+
+// R26: appending to an existing user file creates nothing.
+func TestScratchAppendToOldFileNotOffered(t *testing.T) {
+	h := newFixtureHome(t)
+	log := h.tmpPath("app.log")
+	h.write(h.tmp, "app.log", "old\n")
+	backdate(t, log, time.Now().Add(-7*24*time.Hour))
+	h.write(h.tmp, "app.log", "old\nhi\n") // the append
+	cmds := []string{"echo hi >> " + log, "echo hi | tee -a " + log}
+	for _, cmd := range cmds {
+		rs := fromCommand(cmd, h.repo, "s1", time.Now())
+		if len(rs) != 0 {
+			t.Fatalf("%q recorded %+v", cmd, rs)
+		}
+		wantNoItem(t, mustRun(t, h.context(h.index(rs...))), log)
+	}
+}
+
+func TestScratchGenuineNewFileStillOffered(t *testing.T) {
+	h := newFixtureHome(t)
+	bin := h.tmpPath("my-bin")
+	h.write(h.tmp, "my-bin", "x")
+	rs := fromCommand("go build -o "+bin+" ./cmd/x", h.repo, "s1", time.Now())
+	wantItem(t, mustRun(t, h.context(h.index(rs...))), bin, item.Offer)
+	dir := h.mkdir(h.tmpPath("snap"))
+	rs = fromCommand("mkdir -p "+dir, h.repo, "s1", time.Now())
+	wantItem(t, mustRun(t, h.context(h.index(rs...))), dir, item.Offer)
+}
+
+// R26: with no birth time, a directory is strong only when the receipt says
+// it was made by mkdir or git worktree add; a file keeps the mtime rule.
+func TestScratchWithoutBirthTime(t *testing.T) {
+	h := newFixtureHome(t)
+	t.Cleanup(scan.SetBirthTime(func(string) (time.Time, bool) { return time.Time{}, false }))
+	made := h.mkdir(h.tmpPath("made"))
+	copied := h.mkdir(h.tmpPath("copied"))
+	h.write(copied, "f", "x")
+	file := h.tmpPath("copied.txt")
+	h.write(h.tmp, "copied.txt", "x")
+	now := time.Now()
+	var rs []receipts.Receipt
+	rs = append(rs, fromCommand("mkdir "+made, h.repo, "s1", now)...)
+	rs = append(rs, fromCommand("cp -r src "+copied, h.repo, "s1", now)...)
+	rs = append(rs, fromCommand("cp a "+file, h.repo, "s1", now)...)
+	res := mustRun(t, h.context(h.index(rs...)))
+	wantItem(t, res, made, item.Offer)
+	wantItem(t, res, file, item.Offer)
+	if it := wantItem(t, res, copied, item.LeftAlone); !it.Decision.DetailsOnly || it.Evidence.Strong {
+		t.Fatalf("cp'd dir without birth time: %+v", it)
 	}
 }

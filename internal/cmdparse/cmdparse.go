@@ -70,8 +70,10 @@ func (w *walker) stmt(st *syntax.Stmt) {
 	}
 	w.cmd(st.Cmd)
 	for _, r := range st.Redirs {
+		// Only truncating redirects create; an append (>>, &>>) usually
+		// targets a file that already exists, possibly the user's own.
 		switch r.Op {
-		case syntax.RdrOut, syntax.AppOut, syntax.RdrAll, syntax.AppAll:
+		case syntax.RdrOut, syntax.RdrAll:
 			if s, ok := literal(r.Word); ok {
 				w.add(s, false, ">")
 			}
@@ -163,6 +165,9 @@ func (w *walker) call(c *syntax.CallExpr) {
 	case "git":
 		w.gitWorktree(rest)
 	case "tee":
+		if teeAppends(rest) {
+			break
+		}
 		for _, a := range positional(rest) {
 			if a.ok {
 				w.add(a.s, false, "tee")
@@ -182,6 +187,24 @@ func (w *walker) call(c *syntax.CallExpr) {
 		}
 	}
 	w.dashO(rest)
+}
+
+// teeAppends reports whether tee was given -a/--append (possibly combined,
+// e.g. -ia): appending creates nothing new. An unresolvable word before "--"
+// might expand to -a, so it counts as appending (fail closed).
+func teeAppends(rest []arg) bool {
+	for _, a := range rest {
+		if !a.ok {
+			return true
+		}
+		if a.s == "--" {
+			return false
+		}
+		if a.s == "--append" || (strings.HasPrefix(a.s, "-") && !strings.HasPrefix(a.s, "--") && strings.Contains(a.s, "a")) {
+			return true
+		}
+	}
+	return false
 }
 
 func (w *walker) cd(rest []arg) {

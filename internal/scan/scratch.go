@@ -11,6 +11,9 @@ import (
 	"github.com/Audarya07/agent-receipts/internal/safety"
 )
 
+// birthTime reports when a path itself was created; tests replace it.
+var birthTime = fileBirthTime
+
 // receiptClockSlack is how far a path's mtime may predate the receipt that
 // supposedly created it before the receipt stops counting as strong evidence.
 const receiptClockSlack = 2 * time.Minute
@@ -87,8 +90,12 @@ func collectScratchCandidates(ctx context.Context, c Context, st *runState) []ca
 	return out
 }
 
-// scratchEvidence turns a receipt into evidence. A path that is older than
-// the command that supposedly created it was already there: weak at best.
+// scratchEvidence turns a receipt into evidence. A path that already existed
+// before the command that supposedly created it is weak at best: `cp f
+// /tmp/olddir` or `echo >> /tmp/old.log` bump an old path's mtime, so the
+// birth time decides when the filesystem has one. Without it a directory
+// counts only when the receipt says mkdir or git worktree add made it, and a
+// file keeps the mtime rule (which also applies with a birth time).
 func scratchEvidence(c Context, r receipts.Receipt) item.Evidence {
 	ev := item.Evidence{
 		Strong: true, Source: r.Source,
@@ -105,8 +112,7 @@ func scratchEvidence(c Context, r receipts.Receipt) item.Evidence {
 			ev.SessionName = s.Name
 		}
 	}
-	if fi, err := os.Lstat(r.Path); err == nil && !r.At.IsZero() &&
-		fi.ModTime().Before(r.At.Add(-receiptClockSlack)) {
+	if predates(r) {
 		ev.Strong = false
 		if r.SessionID != "" {
 			ev.Weak = []string{r.SessionID}
@@ -115,6 +121,26 @@ func scratchEvidence(c Context, r receipts.Receipt) item.Evidence {
 		}
 	}
 	return ev
+}
+
+// predates reports whether r.Path may have existed before r was written, or
+// that we cannot tell.
+func predates(r receipts.Receipt) bool {
+	fi, err := os.Lstat(r.Path)
+	if err != nil {
+		return true
+	}
+	if r.At.IsZero() {
+		return false
+	}
+	cutoff := r.At.Add(-receiptClockSlack)
+	if fi.ModTime().Before(cutoff) {
+		return true
+	}
+	if born, ok := birthTime(r.Path); ok {
+		return born.Before(cutoff)
+	}
+	return fi.IsDir() && r.Via != "mkdir" && r.Via != "git worktree add"
 }
 
 func withinAny(path string, dirs []string) bool {
