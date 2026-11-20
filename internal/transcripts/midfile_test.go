@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Audarya07/agent-receipts/internal/env"
-	"github.com/Audarya07/agent-receipts/internal/receipts"
+	"github.com/Audarya07/dustpan/internal/env"
+	"github.com/Audarya07/dustpan/internal/receipts"
 )
 
 func TestParseFileCancelsMidFileAtLineBoundary(t *testing.T) {

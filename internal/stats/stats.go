@@ -11,7 +11,7 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	"github.com/Audarya07/agent-receipts/internal/env"
+	"github.com/Audarya07/dustpan/internal/env"
 )
 
 // Stats are the local counters behind `stats`.

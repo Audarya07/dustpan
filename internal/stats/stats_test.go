@@ -6,7 +6,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/Audarya07/agent-receipts/internal/stats"
+	"github.com/Audarya07/dustpan/internal/stats"
 )
 
 func TestStatsSurvivesCorruptFile(t *testing.T) {

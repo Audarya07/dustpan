@@ -13,9 +13,9 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	"github.com/Audarya07/agent-receipts/internal/env"
-	"github.com/Audarya07/agent-receipts/internal/receipts"
-	"github.com/Audarya07/agent-receipts/internal/transcripts"
+	"github.com/Audarya07/dustpan/internal/env"
+	"github.com/Audarya07/dustpan/internal/receipts"
+	"github.com/Audarya07/dustpan/internal/transcripts"
 )
 
 const fakeAWS = "AKIAZ7Q2XJ4K3M5N6Q2X"

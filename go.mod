@@ -1,4 +1,4 @@
-module github.com/Audarya07/agent-receipts
+module github.com/Audarya07/dustpan
 
 go 1.24
 

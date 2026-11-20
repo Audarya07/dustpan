@@ -7,9 +7,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Audarya07/agent-receipts/internal/item"
-	"github.com/Audarya07/agent-receipts/internal/receipts"
-	"github.com/Audarya07/agent-receipts/internal/scan"
+	"github.com/Audarya07/dustpan/internal/item"
+	"github.com/Audarya07/dustpan/internal/receipts"
+	"github.com/Audarya07/dustpan/internal/scan"
 )
 
 func wantKept(t *testing.T, res scan.Result, path, reason string) {

@@ -6,7 +6,7 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/Audarya07/agent-receipts/internal/env"
+	"github.com/Audarya07/dustpan/internal/env"
 )
 
 func want(t *testing.T, got, w string) {
@@ -42,8 +42,8 @@ func TestFromOSHonorsXDGAndTmpdir(t *testing.T) {
 	t.Setenv("TMPDIR", tmp)
 	t.Setenv("CLAUDE_JOB_DIR", "/jobs/abc")
 	e := env.FromOS()
-	want(t, e.StateDir, "/x/state/agent-receipts")
-	want(t, e.ConfigDir, "/x/cfg/agent-receipts")
+	want(t, e.StateDir, "/x/state/dustpan")
+	want(t, e.ConfigDir, "/x/cfg/dustpan")
 	wantContains(t, e.TmpDirs, mustEval(t, tmp))
 	wantContains(t, e.TmpDirs, mustEval(t, "/tmp"))
 	want(t, e.JobDir, "/jobs/abc")
@@ -60,8 +60,8 @@ func TestFromOSDefaultsAndDedupe(t *testing.T) {
 	t.Setenv("TMPDIR", "/tmp")
 	e := env.FromOS()
 	want(t, e.Home, home)
-	want(t, e.StateDir, filepath.Join(home, ".local/state/agent-receipts"))
-	want(t, e.ConfigDir, filepath.Join(home, ".config/agent-receipts"))
+	want(t, e.StateDir, filepath.Join(home, ".local/state/dustpan"))
+	want(t, e.ConfigDir, filepath.Join(home, ".config/dustpan"))
 	if len(e.TmpDirs) != 1 {
 		t.Fatalf("TmpDirs not de-duplicated: %v", e.TmpDirs)
 	}

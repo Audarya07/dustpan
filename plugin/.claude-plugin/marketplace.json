@@ -1,12 +1,12 @@
 {
-  "name": "agent-receipts",
-  "description": "Local marketplace for the agent-receipts plugin",
+  "name": "dustpan",
+  "description": "Local marketplace for the dustpan plugin",
   "owner": {
     "name": "Audarya Uttarwar"
   },
   "plugins": [
     {
-      "name": "agent-receipts",
+      "name": "dustpan",
       "description": "Reports what coding agents left behind on this machine and which session created it.",
       "version": "0.1.0",
       "source": "./",

@@ -7,7 +7,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/Audarya07/agent-receipts/internal/receipts"
+	"github.com/Audarya07/dustpan/internal/receipts"
 )
 
 func must(t *testing.T, err error) {

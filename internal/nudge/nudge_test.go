@@ -6,10 +6,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Audarya07/agent-receipts/internal/item"
-	"github.com/Audarya07/agent-receipts/internal/nudge"
-	"github.com/Audarya07/agent-receipts/internal/scan"
-	"github.com/Audarya07/agent-receipts/internal/secrets"
+	"github.com/Audarya07/dustpan/internal/item"
+	"github.com/Audarya07/dustpan/internal/nudge"
+	"github.com/Audarya07/dustpan/internal/scan"
+	"github.com/Audarya07/dustpan/internal/secrets"
 )
 
 func fixed() time.Time { return time.Date(2026, 11, 20, 9, 0, 0, 0, time.UTC) }
@@ -99,9 +99,9 @@ func TestDecideMessageCopy(t *testing.T) {
 		c    scan.Result
 		want string
 	}{
-		{cacheWith(3_100_000_000, "a", "b"), "agent-receipts: agents left 3.1 GB on this machine, 2 items look like secrets. run 'agent-receipts report'"},
-		{cacheWith(3_100_000_000, "a"), "agent-receipts: agents left 3.1 GB on this machine, 1 item looks like a secret. run 'agent-receipts report'"},
-		{cacheWith(3_100_000_000), "agent-receipts: agents left 3.1 GB on this machine. run 'agent-receipts report'"},
+		{cacheWith(3_100_000_000, "a", "b"), "dustpan: agents left 3.1 GB on this machine, 2 items look like secrets. run 'dustpan report'"},
+		{cacheWith(3_100_000_000, "a"), "dustpan: agents left 3.1 GB on this machine, 1 item looks like a secret. run 'dustpan report'"},
+		{cacheWith(3_100_000_000), "dustpan: agents left 3.1 GB on this machine. run 'dustpan report'"},
 	}
 	for _, tc := range tests {
 		msg, show, _ := nudge.Decide(fixed(), tc.c, nudge.State{}, time.Time{})

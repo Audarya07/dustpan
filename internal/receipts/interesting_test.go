@@ -4,7 +4,7 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/Audarya07/agent-receipts/internal/receipts"
+	"github.com/Audarya07/dustpan/internal/receipts"
 )
 
 func TestInteresting(t *testing.T) {

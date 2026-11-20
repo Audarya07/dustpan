@@ -12,7 +12,7 @@ import (
 	"golang.org/x/sys/unix"
 	"path/filepath"
 
-	"github.com/Audarya07/agent-receipts/internal/env"
+	"github.com/Audarya07/dustpan/internal/env"
 )
 
 // freedesktopLayout is false on macOS: Finder owns ~/.Trash and there is no info/ directory.

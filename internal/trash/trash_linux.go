@@ -11,7 +11,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/Audarya07/agent-receipts/internal/env"
+	"github.com/Audarya07/dustpan/internal/env"
 )
 
 // freedesktopLayout is true on Linux: files/ and info/ under the Trash dir.

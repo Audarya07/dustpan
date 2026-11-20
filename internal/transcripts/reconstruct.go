@@ -18,9 +18,9 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	"github.com/Audarya07/agent-receipts/internal/cmdparse"
-	"github.com/Audarya07/agent-receipts/internal/env"
-	"github.com/Audarya07/agent-receipts/internal/receipts"
+	"github.com/Audarya07/dustpan/internal/cmdparse"
+	"github.com/Audarya07/dustpan/internal/env"
+	"github.com/Audarya07/dustpan/internal/receipts"
 )
 
 const (

@@ -15,7 +15,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Audarya07/agent-receipts/internal/receipts"
+	"github.com/Audarya07/dustpan/internal/receipts"
 )
 
 // Proc is one process as reported by ps.

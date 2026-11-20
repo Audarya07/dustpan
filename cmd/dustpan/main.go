@@ -1,4 +1,4 @@
-// Command agent-receipts reports what coding agents left behind.
+// Command dustpan reports what coding agents left behind.
 package main
 
 import (
@@ -7,9 +7,9 @@ import (
 	"io"
 	"os"
 
-	"github.com/Audarya07/agent-receipts/internal/env"
-	"github.com/Audarya07/agent-receipts/internal/receipts"
-	"github.com/Audarya07/agent-receipts/internal/transcripts"
+	"github.com/Audarya07/dustpan/internal/env"
+	"github.com/Audarya07/dustpan/internal/receipts"
+	"github.com/Audarya07/dustpan/internal/transcripts"
 )
 
 func main() {

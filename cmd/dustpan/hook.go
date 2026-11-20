@@ -6,10 +6,10 @@ import (
 	"os"
 	"time"
 
-	"github.com/Audarya07/agent-receipts/internal/env"
-	"github.com/Audarya07/agent-receipts/internal/hook"
-	"github.com/Audarya07/agent-receipts/internal/proc"
-	"github.com/Audarya07/agent-receipts/internal/receipts"
+	"github.com/Audarya07/dustpan/internal/env"
+	"github.com/Audarya07/dustpan/internal/hook"
+	"github.com/Audarya07/dustpan/internal/proc"
+	"github.com/Audarya07/dustpan/internal/receipts"
 )
 
 // runHook never writes to stderr and always returns 0.

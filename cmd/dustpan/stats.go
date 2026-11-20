@@ -6,9 +6,9 @@ import (
 	"io"
 	"time"
 
-	"github.com/Audarya07/agent-receipts/internal/env"
-	"github.com/Audarya07/agent-receipts/internal/report"
-	"github.com/Audarya07/agent-receipts/internal/stats"
+	"github.com/Audarya07/dustpan/internal/env"
+	"github.com/Audarya07/dustpan/internal/report"
+	"github.com/Audarya07/dustpan/internal/stats"
 )
 
 func runStats(args []string, stdout, stderr io.Writer) int {

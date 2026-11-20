@@ -4,10 +4,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Audarya07/agent-receipts/internal/item"
-	"github.com/Audarya07/agent-receipts/internal/scan"
-	"github.com/Audarya07/agent-receipts/internal/secrets"
-	"github.com/Audarya07/agent-receipts/internal/stats"
+	"github.com/Audarya07/dustpan/internal/item"
+	"github.com/Audarya07/dustpan/internal/scan"
+	"github.com/Audarya07/dustpan/internal/secrets"
+	"github.com/Audarya07/dustpan/internal/stats"
 )
 
 func TestRecordReport(t *testing.T) {

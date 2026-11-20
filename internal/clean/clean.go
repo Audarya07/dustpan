@@ -13,11 +13,11 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/Audarya07/agent-receipts/internal/env"
-	"github.com/Audarya07/agent-receipts/internal/item"
-	"github.com/Audarya07/agent-receipts/internal/report"
-	"github.com/Audarya07/agent-receipts/internal/scan"
-	"github.com/Audarya07/agent-receipts/internal/stats"
+	"github.com/Audarya07/dustpan/internal/env"
+	"github.com/Audarya07/dustpan/internal/item"
+	"github.com/Audarya07/dustpan/internal/report"
+	"github.com/Audarya07/dustpan/internal/scan"
+	"github.com/Audarya07/dustpan/internal/stats"
 )
 
 // ErrNoTerminal is returned when clean is run without a real terminal.

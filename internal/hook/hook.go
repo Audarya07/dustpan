@@ -18,14 +18,14 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/Audarya07/agent-receipts/internal/cmdparse"
-	"github.com/Audarya07/agent-receipts/internal/env"
-	"github.com/Audarya07/agent-receipts/internal/nudge"
-	"github.com/Audarya07/agent-receipts/internal/proc"
-	"github.com/Audarya07/agent-receipts/internal/receipts"
-	"github.com/Audarya07/agent-receipts/internal/refreshlock"
-	"github.com/Audarya07/agent-receipts/internal/report"
-	"github.com/Audarya07/agent-receipts/internal/stats"
+	"github.com/Audarya07/dustpan/internal/cmdparse"
+	"github.com/Audarya07/dustpan/internal/env"
+	"github.com/Audarya07/dustpan/internal/nudge"
+	"github.com/Audarya07/dustpan/internal/proc"
+	"github.com/Audarya07/dustpan/internal/receipts"
+	"github.com/Audarya07/dustpan/internal/refreshlock"
+	"github.com/Audarya07/dustpan/internal/report"
+	"github.com/Audarya07/dustpan/internal/stats"
 )
 
 // Input is Claude Code's hook payload (only the fields we need).
@@ -353,7 +353,7 @@ func snapshotPath(stateDir, session string) string {
 	return filepath.Join(stateDir, "snapshots", name+".json")
 }
 
-// SpawnRefresh starts a detached `agent-receipts refresh` and does not wait.
+// SpawnRefresh starts a detached `dustpan refresh` and does not wait.
 func SpawnRefresh() error {
 	exe, err := os.Executable()
 	if err != nil {

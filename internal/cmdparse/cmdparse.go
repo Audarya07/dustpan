@@ -10,7 +10,7 @@ import (
 
 	"mvdan.cc/sh/v3/syntax"
 
-	"github.com/Audarya07/agent-receipts/internal/receipts"
+	"github.com/Audarya07/dustpan/internal/receipts"
 )
 
 // Output is a path a command creates.

@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Audarya07/agent-receipts/internal/stats"
+	"github.com/Audarya07/dustpan/internal/stats"
 )
 
 func TestShareTextHasNoPaths(t *testing.T) {

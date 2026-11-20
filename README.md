@@ -1,8 +1,6 @@
-# agent-receipts
+# dustpan
 
 Reports what coding agents left behind on your machine, and which agent session created it.
-
-*"agent-receipts" is a placeholder name; the final name is not chosen yet.*
 
 Agents like Claude Code leave abandoned git worktrees, finished job folders, build binaries and scratch files in `/tmp`, and old transcripts. Some of it holds secrets: an `.env` copied into a forgotten worktree, cloud credentials in a job's temp folder. This tool finds it, shows how much space it takes, and tells you which leftovers contain secrets. It records receipts, so "this looks old" becomes "the session that made this ended 3 days ago and nothing has touched it since".
 
@@ -32,28 +30,28 @@ Your agents left 3.1 GB behind in 14 places.  2 contain secrets.
 macOS and Linux. Once the repo is published:
 
 ```
-go install github.com/Audarya07/agent-receipts/cmd/agent-receipts@latest
+go install github.com/Audarya07/dustpan/cmd/dustpan@latest
 ```
 
 Until then, build from a checkout and put the binary on your `PATH`:
 
 ```
-go build -o agent-receipts ./cmd/agent-receipts
+go build -o dustpan ./cmd/dustpan
 ```
 
 Optional Claude Code plugin (installs the hooks and the `/leftovers` command):
 
 ```
 /plugin marketplace add <path-to-repo>/plugin
-/plugin install agent-receipts@agent-receipts
+/plugin install dustpan@dustpan
 ```
 
-The hooks do nothing if the `agent-receipts` binary is not on your `PATH`.
+The hooks do nothing if the `dustpan` binary is not on your `PATH`.
 
 ## Safety promises
 
 - It never deletes anything by itself. Hooks and reports only read, and only write to the tool's own state folder.
-- The only thing that deletes is `agent-receipts clean`. It needs a real terminal, asks before every item, and re-checks each item right before acting. There is no non-interactive delete command, and `/leftovers` never deletes.
+- The only thing that deletes is `dustpan clean`. It needs a real terminal, asks before every item, and re-checks each item right before acting. There is no non-interactive delete command, and `/leftovers` never deletes.
 - When unsure, it keeps. An item is offered only if every check passes; otherwise it is listed as "left alone" with the reason.
 - Nothing in use is offered: no running process inside it, no live session, nothing changed in the last 24 hours, no git operation in progress.
 - Worktrees with uncommitted work, non-regenerable ignored files (like `.env`), or commits that exist nowhere else are never offered.
@@ -64,15 +62,15 @@ The hooks do nothing if the `agent-receipts` binary is not on your `PATH`.
 
 ## Commands
 
-- `agent-receipts report` shows the summary. `--details` lists every item with path, size, age and which session created it. `--json` prints the same data for scripts. All read-only.
-- `agent-receipts clean` walks through offered items one at a time: Delete / Keep / Skip the rest.
-- `agent-receipts stats` shows local numbers (reports run, space recovered, secrets found, keep rate). `--share` prints an anonymised summary you can paste anywhere.
-- `agent-receipts hook <event>` is the internal entry point the plugin's hooks call.
-- `/leftovers` (plugin) runs the report in your Claude Code session so the agent can explain items. It ends by telling you to run `agent-receipts clean` in your own terminal.
+- `dustpan report` shows the summary. `--details` lists every item with path, size, age and which session created it. `--json` prints the same data for scripts. All read-only.
+- `dustpan clean` walks through offered items one at a time: Delete / Keep / Skip the rest.
+- `dustpan stats` shows local numbers (reports run, space recovered, secrets found, keep rate). `--share` prints an anonymised summary you can paste anywhere.
+- `dustpan hook <event>` is the internal entry point the plugin's hooks call.
+- `/leftovers` (plugin) runs the report in your Claude Code session so the agent can explain items. It ends by telling you to run `dustpan clean` in your own terminal.
 
 ## Where state lives
 
-`$XDG_STATE_HOME/agent-receipts/`, by default `~/.local/state/agent-receipts/`: receipts, cached report, stats, nudge state, reconstruction progress, session snapshots and lock files. Folders are created with mode `0700` and files with `0600`; an existing folder's mode is not changed.
+`$XDG_STATE_HOME/dustpan/`, by default `~/.local/state/dustpan/`: receipts, cached report, stats, nudge state, reconstruction progress, session snapshots and lock files. Folders are created with mode `0700` and files with `0600`; an existing folder's mode is not changed.
 
 ## No telemetry
 
@@ -80,4 +78,4 @@ It makes no network connections, ever. Nothing is sent anywhere.
 
 ## Uninstall
 
-Remove the plugin (`/plugin uninstall agent-receipts@agent-receipts`, then `/plugin marketplace remove agent-receipts`), delete the binary, and delete the state folder: `rm -r ~/.local/state/agent-receipts`.
+Remove the plugin (`/plugin uninstall dustpan@dustpan`, then `/plugin marketplace remove dustpan`), delete the binary, and delete the state folder: `rm -r ~/.local/state/dustpan`.

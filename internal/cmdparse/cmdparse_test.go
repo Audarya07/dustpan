@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/Audarya07/agent-receipts/internal/cmdparse"
+	"github.com/Audarya07/dustpan/internal/cmdparse"
 )
 
 func TestOutputPaths(t *testing.T) {

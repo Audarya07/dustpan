@@ -6,8 +6,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/Audarya07/agent-receipts/internal/item"
-	"github.com/Audarya07/agent-receipts/internal/receipts"
+	"github.com/Audarya07/dustpan/internal/item"
+	"github.com/Audarya07/dustpan/internal/receipts"
 )
 
 const checkoutWalkDepth = 4

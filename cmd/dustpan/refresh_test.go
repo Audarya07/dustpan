@@ -6,13 +6,13 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/Audarya07/agent-receipts/internal/refreshlock"
+	"github.com/Audarya07/dustpan/internal/refreshlock"
 )
 
 func TestRefreshSkipsWhenLockHeld(t *testing.T) {
 	state := t.TempDir()
 	t.Setenv("XDG_STATE_HOME", state)
-	dir := filepath.Join(state, "agent-receipts")
+	dir := filepath.Join(state, "dustpan")
 	release, ok := refreshlock.TryAcquire(dir)
 	if !ok {
 		t.Fatal("could not take lock")

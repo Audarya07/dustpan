@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "command -v agent-receipts >/dev/null 2>&1 && agent-receipts hook SessionStart || true",
+            "command": "command -v dustpan >/dev/null 2>&1 && dustpan hook SessionStart || true",
             "timeout": 1
           }
         ]
@@ -18,7 +18,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "command -v agent-receipts >/dev/null 2>&1 && agent-receipts hook PostToolUse || true",
+            "command": "command -v dustpan >/dev/null 2>&1 && dustpan hook PostToolUse || true",
             "timeout": 1
           }
         ]
@@ -29,7 +29,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "command -v agent-receipts >/dev/null 2>&1 && agent-receipts hook SessionEnd || true",
+            "command": "command -v dustpan >/dev/null 2>&1 && dustpan hook SessionEnd || true",
             "timeout": 1
           }
         ]

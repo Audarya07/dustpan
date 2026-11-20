@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Audarya07/agent-receipts/internal/receipts"
+	"github.com/Audarya07/dustpan/internal/receipts"
 )
 
 func TestStrongCreatorMatchesDirAncestor(t *testing.T) {

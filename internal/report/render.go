@@ -12,9 +12,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Audarya07/agent-receipts/internal/item"
-	"github.com/Audarya07/agent-receipts/internal/scan"
-	"github.com/Audarya07/agent-receipts/internal/secrets"
+	"github.com/Audarya07/dustpan/internal/item"
+	"github.com/Audarya07/dustpan/internal/scan"
+	"github.com/Audarya07/dustpan/internal/secrets"
 )
 
 // HomeDir is abbreviated to "~" in printed paths. Tests override it.

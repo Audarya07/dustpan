@@ -8,7 +8,7 @@ import (
 )
 
 // AppName is the only place the product name lives.
-const AppName = "agent-receipts"
+const AppName = "dustpan"
 
 // Version is set via -ldflags "-X .../internal/env.Version=...".
 var Version = "dev"

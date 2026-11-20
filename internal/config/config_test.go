@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Audarya07/agent-receipts/internal/config"
+	"github.com/Audarya07/dustpan/internal/config"
 )
 
 func TestConfigDefaultsAndBadFile(t *testing.T) {

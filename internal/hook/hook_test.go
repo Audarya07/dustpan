@@ -11,14 +11,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Audarya07/agent-receipts/internal/env"
-	"github.com/Audarya07/agent-receipts/internal/hook"
-	"github.com/Audarya07/agent-receipts/internal/item"
-	"github.com/Audarya07/agent-receipts/internal/nudge"
-	"github.com/Audarya07/agent-receipts/internal/proc"
-	"github.com/Audarya07/agent-receipts/internal/receipts"
-	"github.com/Audarya07/agent-receipts/internal/report"
-	"github.com/Audarya07/agent-receipts/internal/scan"
+	"github.com/Audarya07/dustpan/internal/env"
+	"github.com/Audarya07/dustpan/internal/hook"
+	"github.com/Audarya07/dustpan/internal/item"
+	"github.com/Audarya07/dustpan/internal/nudge"
+	"github.com/Audarya07/dustpan/internal/proc"
+	"github.com/Audarya07/dustpan/internal/receipts"
+	"github.com/Audarya07/dustpan/internal/report"
+	"github.com/Audarya07/dustpan/internal/scan"
 )
 
 func ctx() context.Context { return context.Background() }
@@ -163,7 +163,7 @@ func TestSessionStartNudgeJSON(t *testing.T) {
 	in := payload("SessionStart", "s1", f.tmp, "", "")
 	var out bytes.Buffer
 	must(t, hook.Handle(ctx(), f.Deps, "SessionStart", strings.NewReader(in), &out))
-	want := `{"systemMessage":"agent-receipts: agents left 2.0 GB on this machine. run 'agent-receipts report'"}` + "\n"
+	want := `{"systemMessage":"dustpan: agents left 2.0 GB on this machine. run 'dustpan report'"}` + "\n"
 	if out.String() != want {
 		t.Fatalf("out = %q\nwant %q", out.String(), want)
 	}
@@ -305,8 +305,8 @@ func TestBinaryBudgetAndSilence(t *testing.T) {
 		t.Skip()
 	}
 	root := t.TempDir()
-	bin := filepath.Join(root, "agent-receipts")
-	if out, err := exec.Command("go", "build", "-o", bin, "../../cmd/agent-receipts").CombinedOutput(); err != nil {
+	bin := filepath.Join(root, "dustpan")
+	if out, err := exec.Command("go", "build", "-o", bin, "../../cmd/dustpan").CombinedOutput(); err != nil {
 		t.Fatalf("build: %v\n%s", err, out)
 	}
 	var best time.Duration

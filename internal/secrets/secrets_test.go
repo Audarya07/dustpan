@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/Audarya07/agent-receipts/internal/secrets"
+	"github.com/Audarya07/dustpan/internal/secrets"
 )
 
 // fakeAWS is an invented value, not a real key.

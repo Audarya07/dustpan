@@ -10,10 +10,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Audarya07/agent-receipts/internal/item"
-	"github.com/Audarya07/agent-receipts/internal/report"
-	"github.com/Audarya07/agent-receipts/internal/scan"
-	"github.com/Audarya07/agent-receipts/internal/secrets"
+	"github.com/Audarya07/dustpan/internal/item"
+	"github.com/Audarya07/dustpan/internal/report"
+	"github.com/Audarya07/dustpan/internal/scan"
+	"github.com/Audarya07/dustpan/internal/secrets"
 )
 
 var update = flag.Bool("update", false, "rewrite golden files")

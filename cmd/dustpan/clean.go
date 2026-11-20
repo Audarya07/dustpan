@@ -11,12 +11,12 @@ import (
 
 	"golang.org/x/term"
 
-	"github.com/Audarya07/agent-receipts/internal/clean"
-	"github.com/Audarya07/agent-receipts/internal/env"
-	"github.com/Audarya07/agent-receipts/internal/gitwt"
-	"github.com/Audarya07/agent-receipts/internal/item"
-	"github.com/Audarya07/agent-receipts/internal/scan"
-	"github.com/Audarya07/agent-receipts/internal/trash"
+	"github.com/Audarya07/dustpan/internal/clean"
+	"github.com/Audarya07/dustpan/internal/env"
+	"github.com/Audarya07/dustpan/internal/gitwt"
+	"github.com/Audarya07/dustpan/internal/item"
+	"github.com/Audarya07/dustpan/internal/scan"
+	"github.com/Audarya07/dustpan/internal/trash"
 )
 
 // termUI is the real terminal: prompts on out, answers from in.

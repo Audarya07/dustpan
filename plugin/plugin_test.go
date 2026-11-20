@@ -47,7 +47,7 @@ func TestHooksJSON(t *testing.T) {
 	}
 	for ev, hs := range h.Hooks {
 		for _, x := range hs[0].Hooks {
-			want := "command -v agent-receipts >/dev/null 2>&1 && agent-receipts hook " + ev + " || true"
+			want := "command -v dustpan >/dev/null 2>&1 && dustpan hook " + ev + " || true"
 			if x.Type != "command" || x.Command != want || x.Timeout != 1 {
 				t.Errorf("%s: %+v", ev, x)
 			}
@@ -61,14 +61,14 @@ func TestManifests(t *testing.T) {
 		Author                              struct{ Name string }
 	}
 	mustDecode(t, ".claude-plugin/plugin.json", &p)
-	if p.Name != "agent-receipts" || p.Version != "0.1.0" || p.License != "MIT" || p.Author.Name != "Audarya Uttarwar" || p.Description == "" {
+	if p.Name != "dustpan" || p.Version != "0.1.0" || p.License != "MIT" || p.Author.Name != "Audarya Uttarwar" || p.Description == "" {
 		t.Errorf("plugin.json: %+v", p)
 	}
 	var m struct {
 		Plugins []struct{ Name, Source string }
 	}
 	mustDecode(t, ".claude-plugin/marketplace.json", &m)
-	if len(m.Plugins) != 1 || m.Plugins[0].Name != "agent-receipts" || m.Plugins[0].Source != "./" {
+	if len(m.Plugins) != 1 || m.Plugins[0].Name != "dustpan" || m.Plugins[0].Source != "./" {
 		t.Errorf("marketplace.json: %+v", m)
 	}
 }
@@ -81,10 +81,10 @@ func TestLeftoversCommandForbidsDeletion(t *testing.T) {
 	s := string(b)
 	for _, want := range []string{
 		"description: Show what coding agents left behind on this machine",
-		"agent-receipts report --details",
+		"dustpan report --details",
 		"never delete, move, or edit",
-		"never run `agent-receipts clean`",
-		"agent-receipts clean",
+		"never run `dustpan clean`",
+		"dustpan clean",
 		"own terminal",
 	} {
 		if !strings.Contains(s, want) {

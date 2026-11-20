@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Audarya07/agent-receipts/internal/env"
+	"github.com/Audarya07/dustpan/internal/env"
 )
 
 func TestCheckEnv(t *testing.T) {

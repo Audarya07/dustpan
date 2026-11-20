@@ -5,7 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/Audarya07/agent-receipts/internal/scan"
+	"github.com/Audarya07/dustpan/internal/scan"
 )
 
 const cacheName = "last-report.json"

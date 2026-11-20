@@ -4,8 +4,8 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"github.com/Audarya07/agent-receipts/internal/hook"
-	"github.com/Audarya07/agent-receipts/internal/refreshlock"
+	"github.com/Audarya07/dustpan/internal/hook"
+	"github.com/Audarya07/dustpan/internal/refreshlock"
 	"golang.org/x/sys/unix"
 	"io"
 	"os"
@@ -16,13 +16,13 @@ import (
 
 	"golang.org/x/term"
 
-	"github.com/Audarya07/agent-receipts/internal/env"
-	"github.com/Audarya07/agent-receipts/internal/item"
-	"github.com/Audarya07/agent-receipts/internal/receipts"
-	"github.com/Audarya07/agent-receipts/internal/report"
-	"github.com/Audarya07/agent-receipts/internal/scan"
-	"github.com/Audarya07/agent-receipts/internal/stats"
-	"github.com/Audarya07/agent-receipts/internal/transcripts"
+	"github.com/Audarya07/dustpan/internal/env"
+	"github.com/Audarya07/dustpan/internal/item"
+	"github.com/Audarya07/dustpan/internal/receipts"
+	"github.com/Audarya07/dustpan/internal/report"
+	"github.com/Audarya07/dustpan/internal/scan"
+	"github.com/Audarya07/dustpan/internal/stats"
+	"github.com/Audarya07/dustpan/internal/transcripts"
 )
 
 const (

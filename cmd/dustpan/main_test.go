@@ -8,7 +8,7 @@ import (
 
 func TestRunVersionAndUnknown(t *testing.T) {
 	var out, errb bytes.Buffer
-	if code := run([]string{"version"}, &out, &errb); code != 0 || !strings.Contains(out.String(), "agent-receipts") {
+	if code := run([]string{"version"}, &out, &errb); code != 0 || !strings.Contains(out.String(), "dustpan") {
 		t.Fatal(code, out.String())
 	}
 	errb.Reset()

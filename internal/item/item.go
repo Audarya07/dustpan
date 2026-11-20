@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/Audarya07/agent-receipts/internal/secrets"
+	"github.com/Audarya07/dustpan/internal/secrets"
 )
 
 // Category is the kind of leftover.

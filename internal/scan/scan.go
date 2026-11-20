@@ -13,15 +13,15 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Audarya07/agent-receipts/internal/config"
-	"github.com/Audarya07/agent-receipts/internal/env"
-	"github.com/Audarya07/agent-receipts/internal/gitwt"
-	"github.com/Audarya07/agent-receipts/internal/item"
-	"github.com/Audarya07/agent-receipts/internal/proc"
-	"github.com/Audarya07/agent-receipts/internal/receipts"
-	"github.com/Audarya07/agent-receipts/internal/safety"
-	"github.com/Audarya07/agent-receipts/internal/secrets"
-	"github.com/Audarya07/agent-receipts/internal/trash"
+	"github.com/Audarya07/dustpan/internal/config"
+	"github.com/Audarya07/dustpan/internal/env"
+	"github.com/Audarya07/dustpan/internal/gitwt"
+	"github.com/Audarya07/dustpan/internal/item"
+	"github.com/Audarya07/dustpan/internal/proc"
+	"github.com/Audarya07/dustpan/internal/receipts"
+	"github.com/Audarya07/dustpan/internal/safety"
+	"github.com/Audarya07/dustpan/internal/secrets"
+	"github.com/Audarya07/dustpan/internal/trash"
 )
 
 // Context is everything a scan needs. Proc and ProcErr come from the caller;

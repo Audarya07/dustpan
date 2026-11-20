@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Audarya07/agent-receipts/internal/proc"
+	"github.com/Audarya07/dustpan/internal/proc"
 )
 
 func must(t *testing.T, err error) {
