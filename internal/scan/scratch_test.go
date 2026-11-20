@@ -1,6 +1,8 @@
 package scan_test
 
 import (
+	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -8,6 +10,7 @@ import (
 
 	"github.com/Audarya07/agent-receipts/internal/item"
 	"github.com/Audarya07/agent-receipts/internal/receipts"
+	"github.com/Audarya07/agent-receipts/internal/scan"
 )
 
 func (h *fixture) mkdir(p string) string {
@@ -99,7 +102,7 @@ func TestScratchLiveSessionKeepsItsFiles(t *testing.T) {
 
 func TestScratchSymlinkSwapNeverListsTarget(t *testing.T) {
 	h := newFixtureHome(t)
-	target := h.mkdir(filepath.Join(h.home, "Documents"))
+	target := h.mkdir(filepath.Join(h.home, "proj"))
 	h.write(target, "precious.txt", "x")
 	link := h.tmpPath("foo")
 	if err := os.Symlink(target, link); err != nil {
@@ -109,8 +112,8 @@ func TestScratchSymlinkSwapNeverListsTarget(t *testing.T) {
 	wantNoItem(t, res, target)
 	wantNoItem(t, res, filepath.Join(target, "precious.txt"))
 	it, ok := find(res, link)
-	if ok && it.Size != 0 {
-		t.Fatalf("link item measured its target: %+v", it)
+	if !ok || it.Size != 0 {
+		t.Fatalf("want the link itself listed with size 0, got %+v (found=%v)", it, ok)
 	}
 }
 
@@ -124,5 +127,31 @@ func TestScratchMergedLiveSessionKeepsDir(t *testing.T) {
 	it := wantItem(t, res, dir, item.LeftAlone)
 	if len(it.Evidence.Sessions) != 1 || it.Evidence.Sessions[0] != "live" {
 		t.Fatalf("sessions: %+v", it.Evidence)
+	}
+}
+
+func TestRecheckLinkItemNeverReturnsItsTarget(t *testing.T) {
+	h := newFixtureHome(t)
+	foo, bar := h.tmpPath("foo"), h.tmpPath("bar")
+	h.write(h.tmp, "foo", "x")
+	h.write(h.tmp, "bar", "x")
+	ix := h.index(created(foo, false, "s1"), created(bar, false, "s1"))
+	c := h.context(ix)
+	it := wantItem(t, mustRun(t, c), foo, item.Offer)
+	if err := os.Remove(foo); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(bar, foo); err != nil {
+		t.Fatal(err)
+	}
+	fresh, err := scan.Recheck(context.Background(), c, it)
+	if err == nil && fresh.Path != foo {
+		t.Fatalf("recheck(%s) returned %s", foo, fresh.Path)
+	}
+	if err := os.Remove(foo); err != nil {
+		t.Fatal(err)
+	}
+	if fresh, err := scan.Recheck(context.Background(), c, it); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("gone: got %+v, %v", fresh, err)
 	}
 }

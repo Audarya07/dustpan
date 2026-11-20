@@ -263,9 +263,10 @@ func recheckByCollecting(ctx context.Context, c Context, st *runState, it item.I
 	default:
 		col = collectTranscriptCandidates
 	}
-	path := c.Env.Canon(it.Path)
+	// CanonParent, not Canon: a link item is identified by the link itself.
+	path := c.Env.CanonParent(it.Path)
 	for _, cand := range col(ctx, c, st) {
-		if c.Env.Canon(cand.it.Path) == path {
+		if c.Env.CanonParent(cand.it.Path) == path {
 			return cand, nil
 		}
 	}
