@@ -37,7 +37,7 @@ Your agents left 3.1 GB behind in 14 places.  2 contain secrets.
 
 ## Getting started
 
-You need macOS or Linux, and Go 1.25 or newer.
+You need macOS or Linux, and Go 1.26 or newer.
 
 Install it:
 
@@ -53,7 +53,7 @@ source ~/.zshrc
 dustpan version
 ```
 
-Run a report. This only reads, and takes a few seconds:
+Run a report. It only reads, and usually takes a few seconds. The very first run can take up to a minute, because it reads through your existing Claude Code transcripts once.
 
 ```sh
 dustpan report
@@ -71,16 +71,18 @@ It goes through the items one by one and asks what to do with each: move it to t
 
 ### Claude Code plugin (optional)
 
-The plugin records receipts while your agents work, shows a short reminder at most once a day when something new turns up, and adds a `/leftovers` command so the agent can walk you through the report. The agent can never delete anything.
+The plugin records receipts while your agents work, shows a short reminder at most once a day when something new turns up, and adds a `/dustpan:leftovers` command so the agent can walk you through the report. The agent can never delete anything.
 
-Clone this repo, then in Claude Code:
+Install the binary first (above), then add the plugin from your terminal:
 
+```sh
+claude plugin marketplace add Audarya07/dustpan
+claude plugin install dustpan@dustpan
 ```
-/plugin marketplace add /path/to/dustpan/plugin
-/plugin install dustpan@dustpan
-```
 
-The hooks need the `dustpan` binary on your `PATH`. If it's not there, they quietly do nothing.
+Or from inside a Claude Code session, run `/plugin marketplace add Audarya07/dustpan` and then `/plugin install dustpan@dustpan`. Restart Claude Code afterwards so the hooks load.
+
+The hooks call the `dustpan` binary, so Claude Code has to be able to find it on its `PATH`. If you start Claude Code from a terminal where `dustpan version` works, you're set. If the binary can't be found, the hooks quietly do nothing: no errors, but no receipts or reminders either.
 
 ## What it looks for
 
@@ -99,7 +101,7 @@ For now only Claude Code sessions get receipts, so only those show which session
 
 The rule throughout is simple: if dustpan isn't sure, it leaves the item alone and tells you why.
 
-- Nothing is deleted on its own. `report`, the hooks and `/leftovers` only read. The one command that deletes is `dustpan clean`, and it needs a real terminal and your answer for each item.
+- Nothing is deleted on its own. `report`, the hooks and `/dustpan:leftovers` only read. The one command that deletes is `dustpan clean`, and it needs a real terminal and your answer for each item.
 - Anything still in use is skipped. That covers files a running process has open, sessions that are still going, anything changed in the last 24 hours, and repos in the middle of a rebase or merge. Each item is checked again right before anything happens to it.
 - Unsaved work is never offered. Worktrees with uncommitted changes, ignored files you can't regenerate (like `.env`), or commits that don't exist anywhere else are kept. So is anything that contains a git checkout or sits inside one.
 - Only things an agent made are offered. If there's no evidence an agent created something, it isn't touched. Your own checkouts, agent settings and memory, and shell dotfiles are always off limits.
@@ -128,7 +130,7 @@ The hooks give up after 450 ms and always exit cleanly, so they can't hold up or
 | `dustpan report` | Shows the summary. `--details` lists every item, `--json` gives machine-readable output. Read only. |
 | `dustpan clean` | Goes through cleanable items one at a time and asks before each. |
 | `dustpan stats` | Your own numbers: space recovered, secrets found, how often you chose to keep things. `--share` prints a version with no paths or names that you can paste anywhere. |
-| `/leftovers` | Plugin command. Shows the report inside Claude Code and explains the items. Never deletes. |
+| `/dustpan:leftovers` | Plugin command. Shows the report inside Claude Code and explains the items. Never deletes. |
 
 ## Privacy
 
@@ -142,12 +144,13 @@ There's no telemetry and dustpan never connects to the network. Everything it ke
 
 ## Uninstall
 
-If you installed the plugin, remove it first, inside Claude Code:
+If you installed the plugin, remove it first. This removes the marketplace and uninstalls the plugin in one go:
 
+```sh
+claude plugin marketplace remove dustpan
 ```
-/plugin uninstall dustpan@dustpan
-/plugin marketplace remove dustpan
-```
+
+(Inside a Claude Code session the same thing is `/plugin marketplace remove dustpan`.)
 
 Then remove the binary from Go's bin folder, and dustpan's own state and config folders:
 
