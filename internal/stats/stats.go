@@ -2,16 +2,16 @@
 package stats
 
 import (
-	"fmt"
-	"strings"
-
 	"encoding/json"
-	"github.com/Audarya07/agent-receipts/internal/env"
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"golang.org/x/sys/unix"
+
+	"github.com/Audarya07/agent-receipts/internal/env"
 )
 
 // Stats are the local counters behind `stats`.
@@ -94,14 +94,7 @@ func Update(stateDir string, fn func(*Stats)) error {
 // durations only, never paths, item IDs, secret keys or session names.
 func ShareText(s Stats) string {
 	gb := func(n int64) string { return fmt.Sprintf("%.1f GB", float64(n)/1e9) }
-	keep := "n/a"
-	if d := s.ItemsCleaned + s.ItemsKept; d > 0 {
-		keep = fmt.Sprintf("%d%%", int(float64(s.ItemsKept)/float64(d)*100+0.5))
-	}
-	first := "n/a"
-	if s.FirstReportMillis > 0 {
-		first = (time.Duration(s.FirstReportMillis) * time.Millisecond).String()
-	}
+	keep, first := s.KeepRate(), s.FirstReportString()
 	var b strings.Builder
 	fmt.Fprintf(&b, "%s usage summary\n", env.AppName)
 	fmt.Fprintf(&b, "  reports run:            %d\n", s.ReportsRun)
@@ -113,4 +106,21 @@ func ShareText(s Stats) string {
 	fmt.Fprintf(&b, "  first report took:      %s\n", first)
 	fmt.Fprintf(&b, "(generated locally by %s %s; nothing was sent anywhere)\n", env.AppName, env.Version)
 	return b.String()
+}
+
+// KeepRate is kept/(cleaned+kept) as a percentage, or "n/a" with no answers.
+func (s Stats) KeepRate() string {
+	d := s.ItemsCleaned + s.ItemsKept
+	if d == 0 {
+		return "n/a"
+	}
+	return fmt.Sprintf("%d%%", int(float64(s.ItemsKept)/float64(d)*100+0.5))
+}
+
+// FirstReportString is how long the first report took, or "n/a".
+func (s Stats) FirstReportString() string {
+	if s.FirstReportMillis <= 0 {
+		return "n/a"
+	}
+	return (time.Duration(s.FirstReportMillis) * time.Millisecond).String()
 }

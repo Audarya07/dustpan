@@ -28,29 +28,21 @@ func runStats(args []string, stdout, stderr io.Writer) int {
 }
 
 func writeStats(w io.Writer, s stats.Stats) {
-	keep := "n/a"
-	if d := s.ItemsCleaned + s.ItemsKept; d > 0 {
-		keep = fmt.Sprintf("%d%%", int(float64(s.ItemsKept)/float64(d)*100+0.5))
-	}
 	when := func(t time.Time) string {
 		if t.IsZero() {
 			return "never"
 		}
 		return t.Local().Format("2006-01-02 15:04")
 	}
-	first := "n/a"
-	if s.FirstReportMillis > 0 {
-		first = (time.Duration(s.FirstReportMillis) * time.Millisecond).String()
-	}
 	fmt.Fprintf(w, "%s stats (local only, nothing is sent anywhere)\n\n", env.AppName)
 	fmt.Fprintf(w, "  first run:           %s\n", when(s.FirstRun))
 	fmt.Fprintf(w, "  last report:         %s\n", when(s.LastReport))
 	fmt.Fprintf(w, "  reports run:         %d\n", s.ReportsRun)
-	fmt.Fprintf(w, "  first report took:   %s\n", first)
+	fmt.Fprintf(w, "  first report took:   %s\n", s.FirstReportString())
 	fmt.Fprintf(w, "  items offered:       %d (latest report)\n", s.ItemsOffered)
 	fmt.Fprintf(w, "  items cleaned:       %d\n", s.ItemsCleaned)
 	fmt.Fprintf(w, "  items kept:          %d\n", s.ItemsKept)
-	fmt.Fprintf(w, "  keep rate:           %s\n", keep)
+	fmt.Fprintf(w, "  keep rate:           %s\n", s.KeepRate())
 	fmt.Fprintf(w, "  moved to Trash:      %s\n", report.HumanSize(s.BytesTrashed))
 	fmt.Fprintf(w, "  permanently deleted: %s\n", report.HumanSize(s.BytesDeleted))
 	fmt.Fprintf(w, "  secret items found:  %d\n", len(s.SecretKeys))

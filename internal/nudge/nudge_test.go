@@ -134,3 +134,24 @@ func TestLoadSave(t *testing.T) {
 		t.Errorf("invalid: %+v %v", st, err)
 	}
 }
+
+func TestDecideJudgesOnlyAfterWindowOrReport(t *testing.T) {
+	t0 := fixed()
+	_, show, st := nudge.Decide(t0, cacheWith(0, "a"), nudge.State{}, time.Time{})
+	expect(t, show, true, "first")
+	// a later session inside the window, no report yet: not judged
+	_, _, mid := nudge.Decide(t0.Add(2*time.Hour), cacheWith(0, "a"), st, time.Time{})
+	if mid.IgnoredStreak != 0 || !mid.Judged.IsZero() {
+		t.Fatalf("judged inside window: %+v", mid)
+	}
+	// the report at t0+3h is credited at t0+25h
+	_, _, after := nudge.Decide(t0.Add(25*time.Hour), cacheWith(0, "a"), mid, t0.Add(3*time.Hour))
+	if after.IgnoredStreak != 0 || !after.Judged.Equal(t0) {
+		t.Fatalf("want followed, got %+v", after)
+	}
+	// no report at all: ignored once the window has passed
+	_, _, ign := nudge.Decide(t0.Add(25*time.Hour), cacheWith(0, "a"), mid, time.Time{})
+	if ign.IgnoredStreak != 1 {
+		t.Fatalf("want streak 1, got %+v", ign)
+	}
+}

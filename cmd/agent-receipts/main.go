@@ -48,5 +48,5 @@ func run(args []string, stdout, stderr io.Writer) int {
 }
 
 func usage(w io.Writer) {
-	fmt.Fprintf(w, "usage: %s <command>\n\ncommands:\n  report   show what agents left behind\n  clean    review and remove leftovers (interactive)\n  stats    show totals over time\n  hook     record agent activity (for agent hooks)\n  version  print version\n", env.AppName)
+	fmt.Fprintf(w, "usage: %s <command>\n\ncommands:\n  report   show what agents left behind\n  clean    review and remove leftovers (interactive)\n  stats    show totals over time (stats --share for an anonymised summary)\n  hook     record agent activity (for agent hooks)\n  version  print version\n", env.AppName)
 }

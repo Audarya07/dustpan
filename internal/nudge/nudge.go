@@ -84,13 +84,15 @@ func Save(stateDir string, s State) error {
 func Decide(now time.Time, cache scan.Result, st State, lastReport time.Time) (msg string, show bool, next State) {
 	next = st
 	if !st.LastShown.IsZero() && !st.Judged.Equal(st.LastShown) {
-		followed := !lastReport.Before(st.LastShown) && lastReport.Sub(st.LastShown) <= interval
-		if followed {
+		windowEnd := st.LastShown.Add(interval)
+		switch {
+		case !lastReport.Before(st.LastShown) && !lastReport.After(windowEnd):
 			next.IgnoredStreak = 0
-		} else {
+			next.Judged = st.LastShown
+		case !now.Before(windowEnd):
 			next.IgnoredStreak++
+			next.Judged = st.LastShown
 		}
-		next.Judged = st.LastShown
 	}
 	gap := interval
 	if next.IgnoredStreak >= backoffAfter {
