@@ -2,7 +2,11 @@
 package stats
 
 import (
+	"fmt"
+	"strings"
+
 	"encoding/json"
+	"github.com/Audarya07/agent-receipts/internal/env"
 	"os"
 	"path/filepath"
 	"time"
@@ -84,4 +88,29 @@ func Update(stateDir string, fn func(*Stats)) error {
 		return err
 	}
 	return os.Rename(tmp.Name(), filepath.Join(stateDir, fileName))
+}
+
+// ShareText is the anonymised summary printed by `stats --share`: counts and
+// durations only, never paths, item IDs, secret keys or session names.
+func ShareText(s Stats) string {
+	gb := func(n int64) string { return fmt.Sprintf("%.1f GB", float64(n)/1e9) }
+	keep := "n/a"
+	if d := s.ItemsCleaned + s.ItemsKept; d > 0 {
+		keep = fmt.Sprintf("%d%%", int(float64(s.ItemsKept)/float64(d)*100+0.5))
+	}
+	first := "n/a"
+	if s.FirstReportMillis > 0 {
+		first = (time.Duration(s.FirstReportMillis) * time.Millisecond).String()
+	}
+	var b strings.Builder
+	fmt.Fprintf(&b, "%s usage summary\n", env.AppName)
+	fmt.Fprintf(&b, "  reports run:            %d\n", s.ReportsRun)
+	fmt.Fprintf(&b, "  recovered:              %s trashed, %s permanently deleted\n", gb(s.BytesTrashed), gb(s.BytesDeleted))
+	fmt.Fprintf(&b, "  secrets found:          %d\n", len(s.SecretKeys))
+	fmt.Fprintf(&b, "  real-secret answers:    %d real, %d not real, %d unsure\n", s.SecretReal, s.SecretNotReal, s.SecretUnsure)
+	fmt.Fprintf(&b, "  items cleaned, kept:    %d cleaned, %d kept (keep rate %s)\n", s.ItemsCleaned, s.ItemsKept, keep)
+	fmt.Fprintf(&b, "  nudges:                 %d shown, %d followed\n", s.NudgesShown, s.NudgesFollowed)
+	fmt.Fprintf(&b, "  first report took:      %s\n", first)
+	fmt.Fprintf(&b, "(generated locally by %s %s; nothing was sent anywhere)\n", env.AppName, env.Version)
+	return b.String()
 }
