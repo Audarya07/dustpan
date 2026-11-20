@@ -18,13 +18,12 @@ import (
 	"syscall"
 	"time"
 
-	"golang.org/x/sys/unix"
-
 	"github.com/Audarya07/agent-receipts/internal/cmdparse"
 	"github.com/Audarya07/agent-receipts/internal/env"
 	"github.com/Audarya07/agent-receipts/internal/nudge"
 	"github.com/Audarya07/agent-receipts/internal/proc"
 	"github.com/Audarya07/agent-receipts/internal/receipts"
+	"github.com/Audarya07/agent-receipts/internal/refreshlock"
 	"github.com/Audarya07/agent-receipts/internal/report"
 	"github.com/Audarya07/agent-receipts/internal/stats"
 )
@@ -201,7 +200,7 @@ func sessionEnd(ctx context.Context, d Deps, p Input) error {
 		At: d.now(), Kind: receipts.KindSessionEnd, Agent: "claude", SessionID: p.SessionID, Source: "hook",
 	})
 	err = errors.Join(err, weakAttribution(ctx, d, p.SessionID))
-	if d.SpawnRefresh != nil && !refreshLocked(d.Env.StateDir) {
+	if d.SpawnRefresh != nil && !refreshlock.Held(d.Env.StateDir) {
 		err = errors.Join(err, d.SpawnRefresh())
 	}
 	return err
@@ -341,20 +340,6 @@ func snapshotPath(stateDir, session string) string {
 		name = hex.EncodeToString(h[:16])
 	}
 	return filepath.Join(stateDir, "snapshots", name+".json")
-}
-
-// refreshLocked probes refresh.lock with a non-blocking flock.
-func refreshLocked(stateDir string) bool {
-	f, err := os.OpenFile(filepath.Join(stateDir, "refresh.lock"), os.O_CREATE|os.O_RDWR, 0o600)
-	if err != nil {
-		return false
-	}
-	defer f.Close()
-	if err := unix.Flock(int(f.Fd()), unix.LOCK_EX|unix.LOCK_NB); err != nil {
-		return true
-	}
-	unix.Flock(int(f.Fd()), unix.LOCK_UN)
-	return false
 }
 
 // SpawnRefresh starts a detached `agent-receipts refresh` and does not wait.

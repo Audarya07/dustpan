@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"github.com/Audarya07/agent-receipts/internal/refreshlock"
 	"io"
 	"os"
 	"os/exec"
@@ -174,7 +175,13 @@ func runReport(args []string, stdout, stderr io.Writer) int {
 // runRefresh updates the cache and stats without printing a report; the
 // SessionEnd hook uses it.
 func runRefresh(stderr io.Writer) int {
-	if _, err := collect(env.FromOS(), false); err != nil {
+	e := env.FromOS()
+	release, ok := refreshlock.TryAcquire(e.StateDir)
+	if !ok {
+		return 0 // another refresh is running
+	}
+	defer release()
+	if _, err := collect(e, false); err != nil {
 		fmt.Fprintf(stderr, "%s: refresh: %v\n", env.AppName, err)
 		return 1
 	}
