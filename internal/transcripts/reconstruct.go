@@ -8,12 +8,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
+	"syscall"
 	"time"
 
 	"golang.org/x/sys/unix"
@@ -60,6 +60,7 @@ type assistantLine struct {
 type session struct {
 	id          string
 	name        string
+	cwd         string
 	first, last time.Time
 	created     []receipts.Receipt
 }
@@ -122,6 +123,9 @@ func parseFile(ctx context.Context, e env.Env, path string, offset int64, emit f
 			continue
 		}
 		s := get(h.SessionID)
+		if s.cwd == "" && h.Cwd != "" {
+			s.cwd = e.Canon(h.Cwd)
+		}
 		if ts, err := time.Parse(time.RFC3339, h.Timestamp); err == nil {
 			if s.first.IsZero() || ts.Before(s.first) {
 				s.first = ts
@@ -152,7 +156,7 @@ func parseFile(ctx context.Context, e env.Env, path string, offset int64, emit f
 
 	for _, id := range order {
 		s := sessions[id]
-		base := receipts.Receipt{Agent: agentName, Source: sourceName, SessionID: id, SessionName: s.name}
+		base := receipts.Receipt{Agent: agentName, Source: sourceName, SessionID: id, SessionName: s.name, Cwd: s.cwd}
 		if offset == 0 && !s.first.IsZero() {
 			r := base
 			r.Kind, r.At, r.TranscriptPath = receipts.KindSessionStart, s.first, path
@@ -221,12 +225,31 @@ func toReceipts(e env.Env, cwd string, at time.Time, tool, filePath, notebookPat
 	return rs
 }
 
+// entry is the saved position in one transcript plus the file identity it
+// belongs to, so a replaced file restarts from 0. An old-format bare number is
+// accepted as an offset with unknown identity.
+type entry struct {
+	Offset int64  `json:"offset"`
+	Dev    uint64 `json:"dev,omitempty"`
+	Ino    uint64 `json:"ino,omitempty"`
+}
+
+func (en *entry) UnmarshalJSON(b []byte) error {
+	var n int64
+	if json.Unmarshal(b, &n) == nil {
+		*en = entry{Offset: n}
+		return nil
+	}
+	type plain entry
+	return json.Unmarshal(b, (*plain)(en))
+}
+
 type progress struct {
-	Files map[string]int64 `json:"files"`
+	Files map[string]entry `json:"files"`
 }
 
 func loadProgress(dir string) progress {
-	p := progress{Files: map[string]int64{}}
+	p := progress{Files: map[string]entry{}}
 	if b, err := os.ReadFile(filepath.Join(dir, progressName)); err == nil {
 		var q progress
 		if json.Unmarshal(b, &q) == nil && q.Files != nil {
@@ -264,22 +287,28 @@ type tfile struct {
 	path  string
 	mtime time.Time
 	size  int64
+	dev   uint64
+	ino   uint64
 }
 
 func listTranscripts(home string) []tfile {
-	var fs_ []tfile
+	var list []tfile
 	root := filepath.Join(home, ".claude", "projects")
 	_ = filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
 		if err != nil || d.IsDir() || filepath.Ext(p) != ".jsonl" {
 			return nil
 		}
 		if fi, err := d.Info(); err == nil && fi.Mode().IsRegular() {
-			fs_ = append(fs_, tfile{p, fi.ModTime(), fi.Size()})
+			tf := tfile{path: p, mtime: fi.ModTime(), size: fi.Size()}
+			if st, ok := fi.Sys().(*syscall.Stat_t); ok {
+				tf.dev, tf.ino = uint64(st.Dev), uint64(st.Ino)
+			}
+			list = append(list, tf)
 		}
 		return nil
 	})
-	sort.Slice(fs_, func(i, j int) bool { return fs_[i].mtime.After(fs_[j].mtime) })
-	return fs_
+	sort.Slice(list, func(i, j int) bool { return list[i].mtime.After(list[j].mtime) })
+	return list
 }
 
 // Reconstruct reads Claude transcripts newest first and appends receipts to
@@ -308,12 +337,14 @@ func Reconstruct(ctx context.Context, e env.Env, st *receipts.Store) (bool, erro
 		if ctx.Err() != nil {
 			return false, nil
 		}
-		start := prog.Files[tf.path]
-		if tf.size < start {
+		saved := prog.Files[tf.path]
+		start := saved.Offset
+		replaced := saved.Dev != 0 && (saved.Dev != tf.dev || saved.Ino != tf.ino)
+		if tf.size < start || replaced {
 			start = 0
 		}
 		if start == tf.size {
-			prog.Files[tf.path] = start
+			prog.Files[tf.path] = entry{start, tf.dev, tf.ino}
 			continue
 		}
 		var batch []receipts.Receipt
@@ -323,12 +354,14 @@ func Reconstruct(ctx context.Context, e env.Env, st *receipts.Store) (bool, erro
 				return false, err
 			}
 		}
-		prog.Files[tf.path] = off
+		// A transcript we cannot open or read is skipped, not fatal: whatever
+		// was read is kept, and the file is retried on the next run because
+		// its saved offset stays short of its size.
+		if perr == nil || off > start {
+			prog.Files[tf.path] = entry{off, tf.dev, tf.ino}
+		}
 		if err := saveProgress(e.StateDir, prog); err != nil {
 			return false, err
-		}
-		if perr != nil {
-			return false, fmt.Errorf("read %s: %w", tf.path, perr)
 		}
 		if cancelled {
 			return false, nil

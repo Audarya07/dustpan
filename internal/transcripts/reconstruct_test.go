@@ -184,3 +184,63 @@ func TestReconstructSecondRunnerSkips(t *testing.T) {
 		t.Fatal("progress written while locked")
 	}
 }
+
+func TestReconstructSkipsUnreadableTranscript(t *testing.T) {
+	e, _, _, _ := fixture(t)
+	bad := filepath.Join(e.Home, ".claude", "projects", "-proj", "locked.jsonl")
+	must(t, os.WriteFile(bad, []byte("{}\n"), 0o000))
+	// Make the locked file newest so it is visited first.
+	now := time.Now().Add(time.Hour)
+	must(t, os.Chtimes(bad, now, now))
+	st := receipts.Open(e.StateDir)
+	done, err := transcripts.Reconstruct(context.Background(), e, st)
+	must(t, err)
+	rs, _ := st.Load()
+	if !done || len(created(rs)) != 3 {
+		t.Fatalf("done=%v created=%v", done, created(rs))
+	}
+}
+
+func TestReconstructReplacedFileRestartsFromZero(t *testing.T) {
+	e, file, tmp, cwd := fixture(t)
+	st := receipts.Open(e.StateDir)
+	_, err := transcripts.Reconstruct(context.Background(), e, st)
+	must(t, err)
+	old, _ := os.ReadFile(file)
+	repl := strings.ReplaceAll(string(old), "alpha.go", "omega.go") // same length
+	if len(repl) != len(old) {
+		t.Fatal("test bug: lengths differ")
+	}
+	must(t, os.Remove(file))
+	must(t, os.WriteFile(file, []byte(repl), 0o644))
+	done, err := transcripts.Reconstruct(context.Background(), e, st)
+	must(t, err)
+	rs, _ := st.Load()
+	found := false
+	for _, p := range created(rs) {
+		found = found || p == tmp+"/omega.go"
+	}
+	if !done || !found {
+		t.Fatalf("done=%v created=%v", done, created(rs))
+	}
+	_ = cwd
+}
+
+func TestSessionReceiptsCarryCanonicalCwd(t *testing.T) {
+	e, file, _, cwd := fixture(t)
+	var got []receipts.Receipt
+	_, err := transcripts.ParseFile(e, file, 0, func(r receipts.Receipt) { got = append(got, r) })
+	must(t, err)
+	n := 0
+	for _, r := range got {
+		if r.Kind == receipts.KindSessionStart || r.Kind == receipts.KindSessionEnd {
+			n++
+			if r.Cwd != cwd {
+				t.Fatalf("%s cwd %q, want %q", r.Kind, r.Cwd, cwd)
+			}
+		}
+	}
+	if n != 2 {
+		t.Fatalf("session receipts: %d", n)
+	}
+}
