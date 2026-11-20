@@ -32,6 +32,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 			return 1
 		}
 		return 0
+	case "hook":
+		return runHook(args[1:], os.Stdin, stdout)
 	case "report":
 		return runReport(args[1:], stdout, stderr)
 	case "clean":
