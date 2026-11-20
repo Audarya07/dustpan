@@ -6,6 +6,8 @@ package transcripts
 import (
 	"bufio"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"io"
@@ -231,10 +233,59 @@ func toReceipts(e env.Env, cwd string, at time.Time, tool, filePath, notebookPat
 // entry is the saved position in one transcript plus the file identity it
 // belongs to, so a replaced file restarts from 0. An old-format bare number is
 // accepted as an offset with unknown identity.
+//
+// Dev/Ino alone are not enough: ext4 often hands a new file the inode number
+// of the one just deleted. Head is a SHA-256 of the file's first HeadLen bytes
+// (at most headBytes). Transcripts only ever grow by appending, so their head
+// never changes; a replaced file almost always has a different one. Only the
+// hash is stored, never content.
 type entry struct {
-	Offset int64  `json:"offset"`
-	Dev    uint64 `json:"dev,omitempty"`
-	Ino    uint64 `json:"ino,omitempty"`
+	Offset  int64  `json:"offset"`
+	Dev     uint64 `json:"dev,omitempty"`
+	Ino     uint64 `json:"ino,omitempty"`
+	Head    string `json:"head,omitempty"`
+	HeadLen int64  `json:"head_len,omitempty"`
+}
+
+const headBytes = 4096
+
+// headHash hashes the first n bytes of path. It fails if the file is shorter.
+func headHash(path string, n int64) (string, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+	h := sha256.New()
+	if _, err := io.CopyN(h, f, n); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(h.Sum(nil)), nil
+}
+
+// newEntry records offset off for tf, with the head hash of what was read.
+func newEntry(tf tfile, off int64) entry {
+	en := entry{Offset: off, Dev: tf.dev, Ino: tf.ino}
+	if n := min(off, headBytes); n > 0 {
+		if h, err := headHash(tf.path, n); err == nil {
+			en.Head, en.HeadLen = h, n
+		}
+	}
+	return en
+}
+
+// replaced reports whether tf is no longer the file saved describes.
+func replaced(saved entry, tf tfile) bool {
+	if saved.Dev != 0 && (saved.Dev != tf.dev || saved.Ino != tf.ino) {
+		return true
+	}
+	if saved.HeadLen > 0 {
+		h, err := headHash(tf.path, saved.HeadLen)
+		if err != nil || h != saved.Head {
+			return true
+		}
+	}
+	return false
 }
 
 func (en *entry) UnmarshalJSON(b []byte) error {
@@ -342,12 +393,11 @@ func Reconstruct(ctx context.Context, e env.Env, st *receipts.Store) (bool, erro
 		}
 		saved := prog.Files[tf.path]
 		start := saved.Offset
-		replaced := saved.Dev != 0 && (saved.Dev != tf.dev || saved.Ino != tf.ino)
-		if tf.size < start || replaced {
+		if tf.size < start || replaced(saved, tf) {
 			start = 0
 		}
 		if start == tf.size {
-			prog.Files[tf.path] = entry{start, tf.dev, tf.ino}
+			prog.Files[tf.path] = newEntry(tf, start)
 			continue
 		}
 		var batch []receipts.Receipt
@@ -361,7 +411,7 @@ func Reconstruct(ctx context.Context, e env.Env, st *receipts.Store) (bool, erro
 		// was read is kept, and the file is retried on the next run because
 		// its saved offset stays short of its size.
 		if perr == nil || off > start {
-			prog.Files[tf.path] = entry{off, tf.dev, tf.ino}
+			prog.Files[tf.path] = newEntry(tf, off)
 		}
 		if err := saveProgress(e.StateDir, prog); err != nil {
 			return false, err

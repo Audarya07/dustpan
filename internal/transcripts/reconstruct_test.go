@@ -267,3 +267,44 @@ func TestParseFileDropsDotDotPaths(t *testing.T) {
 		t.Fatalf("created = %v, want only ok.txt", p)
 	}
 }
+
+// Same inode, same length, different content: what ext4 inode reuse looks
+// like. The head hash must catch it.
+func TestReconstructInPlaceRewriteRestartsFromZero(t *testing.T) {
+	e, file, tmp, _ := fixture(t)
+	st := receipts.Open(e.StateDir)
+	_, err := transcripts.Reconstruct(context.Background(), e, st)
+	must(t, err)
+	old, _ := os.ReadFile(file)
+	repl := strings.ReplaceAll(string(old), "alpha.go", "omega.go")
+	must(t, os.WriteFile(file, []byte(repl), 0o644)) // truncates in place, keeps the inode
+	_, err = transcripts.Reconstruct(context.Background(), e, st)
+	must(t, err)
+	rs, _ := st.Load()
+	for _, p := range created(rs) {
+		if p == tmp+"/omega.go" {
+			return
+		}
+	}
+	t.Fatalf("in-place rewrite not re-read: %v", created(rs))
+}
+
+// Appending (the normal case) must resume, not re-read from the start.
+func TestReconstructAppendResumes(t *testing.T) {
+	e, file, _, _ := fixture(t)
+	st := receipts.Open(e.StateDir)
+	_, err := transcripts.Reconstruct(context.Background(), e, st)
+	must(t, err)
+	first, _ := st.Load()
+	f, err := os.OpenFile(file, os.O_APPEND|os.O_WRONLY, 0)
+	must(t, err)
+	_, err = f.WriteString("{\"type\":\"mode\",\"sessionId\":\"x\"}\n")
+	must(t, err)
+	must(t, f.Close())
+	_, err = transcripts.Reconstruct(context.Background(), e, st)
+	must(t, err)
+	second, _ := st.Load()
+	if n1, n2 := len(created(first)), len(created(second)); n2 != n1 {
+		t.Fatalf("append re-read the file: created receipts %d -> %d", n1, n2)
+	}
+}
