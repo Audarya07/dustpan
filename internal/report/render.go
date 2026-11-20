@@ -58,16 +58,19 @@ func (p painter) green(s string) string  { return p.wrap("32", s) }
 func (p painter) cyan(s string) string   { return p.wrap("36", s) }
 func (p painter) dim(s string) string    { return p.wrap("2", s) }
 
-func tilde(path string) string {
+// Tilde shortens a path under the home folder to "~/...".
+func Tilde(path string) string {
 	if HomeDir != "" && (path == HomeDir || strings.HasPrefix(path, HomeDir+"/")) {
 		return "~" + strings.TrimPrefix(path, HomeDir)
 	}
 	return path
 }
 
-// secretLabel maps a gitleaks rule ID to a short human label.
-func secretLabel(rule string) string {
+// SecretLabel maps a gitleaks rule ID to a short human label.
+func SecretLabel(rule string) string {
 	switch {
+	case rule == "":
+		return "secret"
 	case rule == "aws-access-token":
 		return "AWS key"
 	case rule == "generic-api-key":
@@ -124,9 +127,9 @@ func secretLines(items []item.Item) []secretLine {
 		sort.Strings(files)
 		for _, file := range files {
 			fs := byFile[file]
-			full := tilde(filepath.Join(it.Path, file))
+			full := Tilde(filepath.Join(it.Path, file))
 			if len(fs) == 1 {
-				out = append(out, secretLine{fs[0].Masked, secretLabel(fs[0].RuleID), full})
+				out = append(out, secretLine{fs[0].Masked, SecretLabel(fs[0].RuleID), full})
 			} else {
 				out = append(out, secretLine{fmt.Sprintf("%s ×%d", filepath.Base(file), len(fs)), "values", full})
 			}
@@ -142,7 +145,7 @@ func hasSecrets(it item.Item) bool { return len(it.Secrets) > 0 }
 // scanned file itself (Finding.Path is empty then).
 func SecretPath(it item.Item, f secrets.Finding) string {
 	if f.Path == "" {
-		return tilde(it.Path)
+		return Tilde(it.Path)
 	}
 	return f.Path
 }
@@ -201,7 +204,7 @@ func RenderCompact(w io.Writer, r scan.Result, color bool) {
 		fmt.Fprint(w, "Nothing to clean up right now.")
 	}
 	if len(secret) > 0 {
-		fmt.Fprintf(w, "  %d contain secrets.", len(secret))
+		fmt.Fprintf(w, "  %s.", plural(len(secret), "contains secrets", "contain secrets"))
 	}
 	fmt.Fprintln(w)
 	if r.Incomplete {
@@ -385,9 +388,9 @@ func RenderDetails(w io.Writer, r scan.Result, color bool) {
 	}
 	for _, it := range r.Items {
 		fmt.Fprintf(w, "\n%s  %s  %s  %s\n", p.cyan(it.ID), it.Category, HumanSize(it.Size), age(r.GeneratedAt, it.Newest)+" old")
-		fmt.Fprintf(w, "  path:     %s\n", tilde(it.Path))
+		fmt.Fprintf(w, "  path:     %s\n", Tilde(it.Path))
 		if it.Repo != "" || it.Branch != "" {
-			fmt.Fprintf(w, "  repo:     %s %s\n", tilde(it.Repo), it.Branch)
+			fmt.Fprintf(w, "  repo:     %s %s\n", Tilde(it.Repo), it.Branch)
 		}
 		fmt.Fprintf(w, "  made by:  %s\n", attribution(it.Evidence))
 		verdict := string(it.Decision.Class)
@@ -408,7 +411,7 @@ func RenderDetails(w io.Writer, r scan.Result, color bool) {
 			fmt.Fprintf(w, "  why dead: %s\n", it.DeadReason)
 		}
 		for _, f := range it.Secrets {
-			fmt.Fprintf(w, "  %s %s  %s  %s:%d\n", p.red("secret:"), f.Masked, secretLabel(f.RuleID), SecretPath(it, f), f.Line)
+			fmt.Fprintf(w, "  %s %s  %s  %s:%d\n", p.red("secret:"), f.Masked, SecretLabel(f.RuleID), SecretPath(it, f), f.Line)
 		}
 		if it.SecretsPartial {
 			fmt.Fprintln(w, "  partially scanned, more secrets may exist")

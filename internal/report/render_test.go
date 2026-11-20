@@ -191,7 +191,7 @@ func TestCompactNoOffers(t *testing.T) {
 	var buf bytes.Buffer
 	report.RenderCompact(&buf, scan.Result{GeneratedAt: fixedTime, Items: []item.Item{left}}, false)
 	out := buf.String()
-	if !strings.HasPrefix(out, "Nothing to clean up right now.  1 contain secrets.\n") {
+	if !strings.HasPrefix(out, "Nothing to clean up right now.  1 contains secrets.\n") {
 		t.Errorf("headline: %q", out)
 	}
 	for _, want := range []string{"ghp…1234  GitHub token", "Still in use, left alone", "1 worktree   session active 4 min ago"} {
@@ -231,5 +231,25 @@ func TestCompactSkipsDetailsOnlySecrets(t *testing.T) {
 	report.RenderCompact(&buf, scan.Result{GeneratedAt: fixedTime, Items: []item.Item{weak}}, false)
 	if !strings.HasPrefix(buf.String(), "Nothing left behind.") {
 		t.Fatalf("compact:\n%s", buf.String())
+	}
+}
+
+func TestHeadlineSecretGrammar(t *testing.T) {
+	one := item.Item{ID: "a", Category: item.Job, Path: "/x/a", Size: 10, Decision: item.Decision{Class: item.Offer},
+		Secrets: []secrets.Finding{{Path: "k", Line: 1, RuleID: "aws-access-token", Masked: "AKIA…QQQQ"}}}
+	two := one
+	two.ID, two.Path = "b", "/x/b"
+	for _, c := range []struct {
+		items []item.Item
+		want  string
+	}{{[]item.Item{one}, "1 contains secrets."}, {[]item.Item{one, two}, "2 contain secrets."}} {
+		var buf bytes.Buffer
+		report.RenderCompact(&buf, scan.Result{GeneratedAt: fixedTime, Items: c.items}, false)
+		if first := strings.SplitN(buf.String(), "\n", 2)[0]; !strings.HasSuffix(first, c.want) {
+			t.Errorf("headline %q, want suffix %q", first, c.want)
+		}
+	}
+	if got := report.SecretLabel(""); got != "secret" {
+		t.Errorf("SecretLabel(\"\") = %q", got)
 	}
 }

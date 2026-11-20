@@ -135,7 +135,7 @@ const maxSecretLines = 5
 
 func describe(it item.Item, now time.Time) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "%s  %s\n", it.ID, it.Path)
+	fmt.Fprintf(&b, "%s  %s\n", it.ID, report.Tilde(it.Path))
 	if it.Unregister {
 		b.WriteString("  the folder is already gone; git still lists this worktree\n")
 	} else {
@@ -153,7 +153,7 @@ func describe(it item.Item, now time.Time) string {
 			fmt.Fprintf(&b, "  ... and %d more possible secrets\n", len(it.Secrets)-maxSecretLines)
 			break
 		}
-		fmt.Fprintf(&b, "  possible secret: %s:%d %s %s\n", report.SecretPath(it, f), f.Line, f.Description, f.Masked)
+		fmt.Fprintf(&b, "  possible secret: %s:%d %s %s\n", report.SecretPath(it, f), f.Line, report.SecretLabel(f.RuleID), f.Masked)
 	}
 	if it.SecretsPartial {
 		b.WriteString("  (secret check was partial)\n")

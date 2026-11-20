@@ -382,9 +382,9 @@ func TestCleanDeclinedConfirmCountsAsSkipped(t *testing.T) {
 // file itself, never ":3".
 func TestDescribeSingleFileSecretNamesTheFile(t *testing.T) {
 	it := mk(t, "notes.txt", 10)
-	it.Secrets = []secrets.Finding{{Path: "", Line: 3, Description: "key", Masked: "AKIA****"}}
+	it.Secrets = []secrets.Finding{{Path: "", Line: 3, RuleID: "aws-access-token", Description: "long gitleaks sentence", Masked: "AKIA****"}}
 	out := describe(it, it.Newest)
-	if !strings.Contains(out, "possible secret: "+it.Path+":3 key AKIA****") {
+	if !strings.Contains(out, "possible secret: "+it.Path+":3 AWS key AKIA****") || strings.Contains(out, "long gitleaks sentence") {
 		t.Fatalf("describe:\n%s", out)
 	}
 }
