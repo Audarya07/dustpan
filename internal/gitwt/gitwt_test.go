@@ -1,6 +1,7 @@
 package gitwt
 
 import (
+	"context"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -8,6 +9,8 @@ import (
 	"strings"
 	"testing"
 )
+
+var bg = context.Background()
 
 // run executes a git command in dir with a hermetic environment (set by newRepo).
 func run(t *testing.T, dir string, args ...string) string {
@@ -83,7 +86,7 @@ func addWT(t *testing.T, repo, name string) Worktree {
 func TestInspectCleanNoCommits(t *testing.T) {
 	repo := newRepo(t)
 	wt := addWT(t, repo, "feat")
-	st, err := Inspect(wt, "main")
+	st, err := Inspect(bg, wt, "main")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -103,7 +106,7 @@ func TestInspectDirty(t *testing.T) {
 	wt := addWT(t, repo, "feat")
 	write(t, filepath.Join(wt.Path, "wip.txt"), "x")
 	write(t, filepath.Join(wt.Path, "a.txt"), "changed\n")
-	st, err := Inspect(wt, "main")
+	st, err := Inspect(bg, wt, "main")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -128,7 +131,7 @@ func TestInspectEnvIsKeptNodeModulesIsNot(t *testing.T) {
 	write(t, filepath.Join(wt.Path, ".env"), "SECRET=1")
 	write(t, filepath.Join(wt.Path, "node_modules", "pkg", "i.js"), "x")
 	write(t, filepath.Join(wt.Path, "config", "local.json"), "{}")
-	st, err := Inspect(wt, "main")
+	st, err := Inspect(bg, wt, "main")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -152,7 +155,7 @@ func TestInspectOnlyNodeModulesIsClean(t *testing.T) {
 	run(t, repo, "push", "origin", "main")
 	wt := addWT(t, repo, "feat")
 	write(t, filepath.Join(wt.Path, "node_modules", "pkg", "i.js"), "x")
-	st, err := Inspect(wt, "main")
+	st, err := Inspect(bg, wt, "main")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -167,7 +170,7 @@ func TestInspectUnpushedCommit(t *testing.T) {
 	write(t, filepath.Join(wt.Path, "b.txt"), "b\n")
 	run(t, wt.Path, "add", "-A")
 	run(t, wt.Path, "commit", "-m", "b")
-	st, err := Inspect(wt, "main")
+	st, err := Inspect(bg, wt, "main")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -186,7 +189,7 @@ func TestInspectPushedCommit(t *testing.T) {
 	run(t, wt.Path, "add", "-A")
 	run(t, wt.Path, "commit", "-m", "b")
 	run(t, wt.Path, "push", "origin", "feat")
-	st, err := Inspect(wt, "main")
+	st, err := Inspect(bg, wt, "main")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -212,7 +215,7 @@ func TestInspectSquashMerged(t *testing.T) {
 	write(t, filepath.Join(repo, "c.txt"), "c\n")
 	run(t, repo, "add", "-A")
 	run(t, repo, "commit", "-m", "squash")
-	st, err := Inspect(wt, "main")
+	st, err := Inspect(bg, wt, "main")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -235,7 +238,7 @@ func TestInspectNotSquashMergedWhenMainLacksChange(t *testing.T) {
 	// main gets only part of the change.
 	write(t, filepath.Join(repo, "a.txt"), "v1\n")
 	run(t, repo, "commit", "-am", "partial")
-	st, err := Inspect(wt, "main")
+	st, err := Inspect(bg, wt, "main")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -256,7 +259,7 @@ func TestInspectCherryPickedCommitIsSaved(t *testing.T) {
 	// cherry-pick only the first onto main (patch-equivalent), leaving "d" unsaved
 	first := run(t, wt.Path, "rev-parse", "HEAD~1")
 	run(t, repo, "cherry-pick", first)
-	st, err := Inspect(wt, "main")
+	st, err := Inspect(bg, wt, "main")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -272,7 +275,7 @@ func TestInspectRebaseInProgress(t *testing.T) {
 	if err := os.Mkdir(filepath.Join(gitdir, "rebase-merge"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	st, err := Inspect(wt, "main")
+	st, err := Inspect(bg, wt, "main")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -293,7 +296,7 @@ func TestInspectDetachedUnreachable(t *testing.T) {
 	run(t, wt.Path, "commit", "-m", "orphan")
 	wt.Detached = true
 	wt.Branch = ""
-	st, err := Inspect(wt, "main")
+	st, err := Inspect(bg, wt, "main")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -311,7 +314,7 @@ func TestInspectDetachedReachableIsClean(t *testing.T) {
 	run(t, wt.Path, "checkout", "--detach")
 	wt.Detached = true
 	wt.Branch = ""
-	st, err := Inspect(wt, "main")
+	st, err := Inspect(bg, wt, "main")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -323,11 +326,11 @@ func TestInspectDetachedReachableIsClean(t *testing.T) {
 func TestInspectErrorsWhenGitFails(t *testing.T) {
 	repo := newRepo(t)
 	wt := Worktree{Repo: repo, Path: filepath.Join(filepath.Dir(repo), "does-not-exist")}
-	if _, err := Inspect(wt, "main"); err == nil {
+	if _, err := Inspect(bg, wt, "main"); err == nil {
 		t.Fatal("want error for missing worktree path")
 	}
 	wt = addWT(t, repo, "feat")
-	if _, err := Inspect(wt, "no-such-base"); err == nil {
+	if _, err := Inspect(bg, wt, "no-such-base"); err == nil {
 		t.Fatal("want error for unknown base ref")
 	}
 }
@@ -337,7 +340,7 @@ func TestInspectLockedViaIndexLock(t *testing.T) {
 	wt := addWT(t, repo, "feat")
 	gitdir := run(t, wt.Path, "rev-parse", "--path-format=absolute", "--git-dir")
 	write(t, filepath.Join(gitdir, "index.lock"), "")
-	st, err := Inspect(wt, "main")
+	st, err := Inspect(bg, wt, "main")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -349,7 +352,7 @@ func TestInspectLockedViaIndexLock(t *testing.T) {
 func TestListAndRepoOf(t *testing.T) {
 	repo := newRepo(t)
 	wt := addWT(t, repo, "feat")
-	l, err := List(repo)
+	l, err := List(bg, repo)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -360,25 +363,25 @@ func TestListAndRepoOf(t *testing.T) {
 		t.Fatalf("list[1] = %+v", l[1])
 	}
 	for _, p := range []string{repo, wt.Path} {
-		got, err := RepoOf(p)
+		got, err := RepoOf(bg, p)
 		if err != nil || got != repo {
-			t.Fatalf("RepoOf(%s) = %q, %v; want %q", p, got, err, repo)
+			t.Fatalf("RepoOf(bg, %s) = %q, %v; want %q", p, got, err, repo)
 		}
 	}
 }
 
 func TestBaseRef(t *testing.T) {
 	repo := newRepo(t)
-	if got := BaseRef(repo); got != "origin/main" {
+	if got := BaseRef(bg, repo); got != "origin/main" {
 		t.Fatalf("BaseRef = %q", got)
 	}
 	run(t, repo, "remote", "set-head", "origin", "main")
-	if got := BaseRef(repo); got != "origin/main" {
+	if got := BaseRef(bg, repo); got != "origin/main" {
 		t.Fatalf("BaseRef with origin/HEAD = %q", got)
 	}
 	run(t, repo, "update-ref", "-d", "refs/remotes/origin/main")
 	run(t, repo, "update-ref", "-d", "refs/remotes/origin/HEAD")
-	if got := BaseRef(repo); got != "main" {
+	if got := BaseRef(bg, repo); got != "main" {
 		t.Fatalf("BaseRef fallback = %q", got)
 	}
 }
@@ -394,10 +397,10 @@ func TestRemoveAfterMoveUnregistersOnlyThat(t *testing.T) {
 	if err := os.RemoveAll(b.Path); err != nil {
 		t.Fatal(err)
 	}
-	if err := Remove(repo, a.Path); err != nil {
+	if err := Remove(bg, repo, a.Path); err != nil {
 		t.Fatalf("Remove: %v", err)
 	}
-	l, err := List(repo)
+	l, err := List(bg, repo)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -417,7 +420,7 @@ func TestRemoveRefusesDirtyWorktree(t *testing.T) {
 	wt := addWT(t, repo, "feat")
 	f := filepath.Join(wt.Path, "wip.txt")
 	write(t, f, "precious")
-	if err := Remove(repo, wt.Path); err == nil {
+	if err := Remove(bg, repo, wt.Path); err == nil {
 		t.Fatal("Remove must fail on a worktree with an untracked file")
 	}
 	if b, err := os.ReadFile(f); err != nil || string(b) != "precious" {
@@ -463,7 +466,7 @@ func TestInspectAssumeUnchangedEditIsUnsaved(t *testing.T) {
 	wt := addWT(t, repo, "feat")
 	run(t, wt.Path, "update-index", "--assume-unchanged", "a.txt")
 	write(t, filepath.Join(wt.Path, "a.txt"), "edited\n")
-	st, err := Inspect(wt, "main")
+	st, err := Inspect(bg, wt, "main")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -477,7 +480,7 @@ func TestInspectSkipWorktreeEditIsUnsaved(t *testing.T) {
 	wt := addWT(t, repo, "feat")
 	run(t, wt.Path, "update-index", "--skip-worktree", "a.txt")
 	write(t, filepath.Join(wt.Path, "a.txt"), "edited\n")
-	st, err := Inspect(wt, "main")
+	st, err := Inspect(bg, wt, "main")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -488,7 +491,7 @@ func TestInspectSkipWorktreeEditIsUnsaved(t *testing.T) {
 	if err := os.Remove(filepath.Join(wt.Path, "a.txt")); err != nil {
 		t.Fatal(err)
 	}
-	st, err = Inspect(wt, "main")
+	st, err = Inspect(bg, wt, "main")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -505,7 +508,7 @@ func TestInspectSparseAbsentSkipWorktreeExempt(t *testing.T) {
 	if err := os.Remove(filepath.Join(wt.Path, "a.txt")); err != nil {
 		t.Fatal(err)
 	}
-	st, err := Inspect(wt, "main")
+	st, err := Inspect(bg, wt, "main")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -514,7 +517,7 @@ func TestInspectSparseAbsentSkipWorktreeExempt(t *testing.T) {
 	}
 	// Reappearing on disk makes git clear the bit and status shows it as modified.
 	write(t, filepath.Join(wt.Path, "a.txt"), "edited\n")
-	st, err = Inspect(wt, "main")
+	st, err = Inspect(bg, wt, "main")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -530,7 +533,7 @@ func TestInspectIgnoresInheritedGitEnv(t *testing.T) {
 	t.Setenv("GIT_DIR", filepath.Join(repo, ".git"))
 	t.Setenv("GIT_WORK_TREE", repo)
 	t.Setenv("GIT_INDEX_FILE", filepath.Join(repo, ".git", "index"))
-	st, err := Inspect(wt, "main")
+	st, err := Inspect(bg, wt, "main")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -544,7 +547,7 @@ func TestInspectShowUntrackedFilesNoConfig(t *testing.T) {
 	run(t, repo, "config", "status.showUntrackedFiles", "no")
 	wt := addWT(t, repo, "feat")
 	write(t, filepath.Join(wt.Path, "wip.txt"), "x")
-	st, err := Inspect(wt, "main")
+	st, err := Inspect(bg, wt, "main")
 	if err != nil {
 		t.Fatal(err)
 	}

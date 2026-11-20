@@ -342,3 +342,23 @@ func TestMeasureUnreadableDirGivesUnknownNewest(t *testing.T) {
 		t.Fatalf("newest = %v, want zero on walk error", newest)
 	}
 }
+
+// R31: a git that hangs (e.g. a lazy fetch waiting on the network) makes the
+// re-check fail, so clean skips the worktree instead of acting on it.
+func TestRecheckWorktreeHangingGitIsError(t *testing.T) {
+	h := newFixtureHome(t)
+	wt := h.addWorktree("repo/.claude/worktrees/hang")
+	c := h.context(receipts.BuildIndex(nil))
+	it := wantItem(t, mustRun(t, c), wt, item.Offer)
+	fake := t.TempDir()
+	if err := os.WriteFile(filepath.Join(fake, "git"), []byte("#!/bin/sh\nsleep 30\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", fake+string(os.PathListSeparator)+os.Getenv("PATH"))
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cancel()
+	fresh, err := scan.Recheck(ctx, c, it)
+	if err == nil || errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("recheck with hanging git: %+v, %v; want a re-check error", fresh.Decision, err)
+	}
+}

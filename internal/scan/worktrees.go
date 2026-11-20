@@ -98,13 +98,13 @@ func discoverRepos(ctx context.Context, c Context, st *runState) []string {
 		}
 		cwd = e.Canon(cwd)
 		if fi, err := os.Stat(cwd); err == nil && fi.IsDir() {
-			if r, err := gitwt.RepoOf(cwd); err == nil {
+			if r, err := gitwt.RepoOf(ctx, cwd); err == nil {
 				add(r)
 			}
 		}
 	}
 	for _, d := range agentFolderDirs(e.Home) {
-		if r, err := gitwt.RepoOf(d); err == nil {
+		if r, err := gitwt.RepoOf(ctx, d); err == nil {
 			add(r)
 		}
 	}
@@ -118,7 +118,7 @@ func discoverCheckouts(ctx context.Context, c Context, st *runState) {
 		if ctx.Err() != nil {
 			return
 		}
-		wts, err := gitwt.List(repo)
+		wts, err := gitwt.List(ctx, repo)
 		if err != nil {
 			continue
 		}
@@ -161,7 +161,7 @@ func collectWorktreeCandidates(ctx context.Context, c Context, st *runState) []c
 		if ctx.Err() != nil {
 			break
 		}
-		wts, err := gitwt.List(repo)
+		wts, err := gitwt.List(ctx, repo)
 		if err != nil {
 			continue
 		}
@@ -178,9 +178,9 @@ func collectWorktreeCandidates(ctx context.Context, c Context, st *runState) []c
 			}
 			seen[path] = true
 			if !baseDone && !wt.Prunable {
-				base, baseDone = gitwt.BaseRef(repo), true
+				base, baseDone = gitwt.BaseRef(ctx, repo), true
 			}
-			if cand, ok := worktreeCandidate(c, folders, repo, wt, base); ok {
+			if cand, ok := worktreeCandidate(ctx, c, folders, repo, wt, base); ok {
 				out = append(out, cand)
 			}
 		}
@@ -227,7 +227,7 @@ func evidenceFor(c Context, folders []string, path string) (item.Evidence, bool)
 
 // worktreeCandidate builds the candidate for one non-main worktree, or
 // reports false when nothing ties it to an agent.
-func worktreeCandidate(c Context, folders []string, repo string, wt gitwt.Worktree, base string) (candidate, bool) {
+func worktreeCandidate(ctx context.Context, c Context, folders []string, repo string, wt gitwt.Worktree, base string) (candidate, bool) {
 	path := c.Env.Canon(wt.Path)
 	ev, ok := evidenceFor(c, folders, path)
 	if !ok {
@@ -241,7 +241,7 @@ func worktreeCandidate(c Context, folders []string, repo string, wt gitwt.Worktr
 		return candidate{it: it, git: &gitwt.State{Locked: wt.Locked}}, true
 	}
 	wt.Path = path
-	state, err := gitwt.Inspect(wt, base)
+	state, err := gitwt.Inspect(ctx, wt, base)
 	if err != nil {
 		return candidate{it: it, gitErr: fmt.Errorf("inspect %s: %w", path, err)}, true
 	}
@@ -258,8 +258,7 @@ func worktreeCandidate(c Context, folders []string, repo string, wt gitwt.Worktr
 }
 
 // recheckWorktree re-lists the item's repo and rebuilds its candidate.
-func recheckWorktree(c Context, st *runState, it item.Item) (candidate, error) {
-	ctx := context.Background()
+func recheckWorktree(ctx context.Context, c Context, st *runState, it item.Item) (candidate, error) {
 	repos := discoverRepos(ctx, c, st)
 	repo := c.Env.Canon(it.Repo)
 	if it.Repo != "" {
@@ -273,7 +272,7 @@ func recheckWorktree(c Context, st *runState, it item.Item) (candidate, error) {
 		}
 	}
 	gone := fmt.Errorf("worktree %s: %w", it.Path, os.ErrNotExist)
-	wts, err := gitwt.List(repo)
+	wts, err := gitwt.List(ctx, repo)
 	if err != nil {
 		if _, serr := os.Stat(repo); os.IsNotExist(serr) {
 			return candidate{}, gone
@@ -286,9 +285,9 @@ func recheckWorktree(c Context, st *runState, it item.Item) (candidate, error) {
 		}
 		base := ""
 		if !wt.Prunable {
-			base = gitwt.BaseRef(repo)
+			base = gitwt.BaseRef(ctx, repo)
 		}
-		if cand, ok := worktreeCandidate(c, agentFolders(c, repos), repo, wt, base); ok {
+		if cand, ok := worktreeCandidate(ctx, c, agentFolders(c, repos), repo, wt, base); ok {
 			return cand, nil
 		}
 		break

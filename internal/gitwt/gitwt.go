@@ -6,6 +6,7 @@ package gitwt
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -13,6 +14,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 )
 
 // Worktree is one entry of `git worktree list --porcelain`.
@@ -53,21 +55,35 @@ func gitEnv() []string {
 	return env
 }
 
-// git runs git in dir. It never takes optional locks and uses the C locale.
-func git(dir string, args ...string) (string, error) {
-	cmd := exec.Command("git", append([]string{"-C", dir}, args...)...)
-	cmd.Env = append(gitEnv(), "GIT_OPTIONAL_LOCKS=0", "LC_ALL=C")
+// callTimeout bounds every git command, on top of the caller's context.
+var callTimeout = 20 * time.Second
+
+// git runs git in dir. It never takes optional locks, uses the C locale,
+// never prompts and never reaches the network: lazy fetches of partial
+// clones are off and every transport protocol is disallowed. A command that
+// outlives ctx or callTimeout is killed and reported as an error, so the
+// caller keeps the item.
+func git(ctx context.Context, dir string, args ...string) (string, error) {
+	ctx, cancel := context.WithTimeout(ctx, callTimeout)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "git", append([]string{"-c", "protocol.allow=never", "-C", dir}, args...)...)
+	cmd.Env = append(gitEnv(), "GIT_OPTIONAL_LOCKS=0", "GIT_NO_LAZY_FETCH=1", "GIT_TERMINAL_PROMPT=0", "LC_ALL=C")
+	cmd.WaitDelay = 2 * time.Second // don't wait on a killed git's children
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr
-	if err := cmd.Run(); err != nil {
+	err := cmd.Run()
+	if cerr := ctx.Err(); cerr != nil {
+		return "", fmt.Errorf("git %s: %w", strings.Join(args, " "), cerr)
+	}
+	if err != nil {
 		return stdout.String(), fmt.Errorf("git %s: %w: %s", strings.Join(args, " "), err, strings.TrimSpace(stderr.String()))
 	}
 	return stdout.String(), nil
 }
 
 // List returns the worktrees of repo; the first is the main checkout.
-func List(repo string) ([]Worktree, error) {
-	out, err := git(repo, "worktree", "list", "--porcelain")
+func List(ctx context.Context, repo string) ([]Worktree, error) {
+	out, err := git(ctx, repo, "worktree", "list", "--porcelain")
 	if err != nil {
 		return nil, err
 	}
@@ -105,8 +121,8 @@ func List(repo string) ([]Worktree, error) {
 }
 
 // RepoOf returns the main checkout path that path belongs to.
-func RepoOf(path string) (string, error) {
-	out, err := git(path, "rev-parse", "--path-format=absolute", "--git-common-dir")
+func RepoOf(ctx context.Context, path string) (string, error) {
+	out, err := git(ctx, path, "rev-parse", "--path-format=absolute", "--git-common-dir")
 	if err != nil {
 		return "", err
 	}
@@ -149,20 +165,20 @@ func FindRepos(root string, depth int) []string {
 	return res
 }
 
-func refExists(repo, ref string) bool {
-	_, err := git(repo, "rev-parse", "--verify", "--quiet", ref+"^{commit}")
+func refExists(ctx context.Context, repo, ref string) bool {
+	_, err := git(ctx, repo, "rev-parse", "--verify", "--quiet", ref+"^{commit}")
 	return err == nil
 }
 
 // BaseRef picks the ref work is considered saved into, or "" if none exists.
-func BaseRef(repo string) string {
-	if out, err := git(repo, "symbolic-ref", "--short", "refs/remotes/origin/HEAD"); err == nil {
-		if ref := strings.TrimSpace(out); ref != "" && refExists(repo, ref) {
+func BaseRef(ctx context.Context, repo string) string {
+	if out, err := git(ctx, repo, "symbolic-ref", "--short", "refs/remotes/origin/HEAD"); err == nil {
+		if ref := strings.TrimSpace(out); ref != "" && refExists(ctx, repo, ref) {
 			return ref
 		}
 	}
 	for _, ref := range []string{"origin/main", "origin/master", "main", "master"} {
-		if refExists(repo, ref) {
+		if refExists(ctx, repo, ref) {
 			return ref
 		}
 	}
@@ -222,17 +238,17 @@ func lines(s string) []string {
 // Inspect reports everything in wt that would be lost by removing it.
 // base is the ref work is merged into ("" if unknown, which makes every
 // commit not on a remote count as unsaved).
-func Inspect(wt Worktree, base string) (State, error) {
+func Inspect(ctx context.Context, wt Worktree, base string) (State, error) {
 	st := State{Base: base}
 	dir := wt.Path
 
-	out, err := git(dir, "rev-parse", "HEAD")
+	out, err := git(ctx, dir, "rev-parse", "HEAD")
 	if err != nil {
 		return State{}, err
 	}
 	st.HeadSHA = strings.TrimSpace(out)
 
-	out, err = git(dir, "status", "--porcelain=v1", "-z", "--ignored=matching", "--untracked-files=normal", "--ignore-submodules=none")
+	out, err = git(ctx, dir, "status", "--porcelain=v1", "-z", "--ignored=matching", "--untracked-files=normal", "--ignore-submodules=none")
 	if err != nil {
 		return State{}, err
 	}
@@ -243,7 +259,7 @@ func Inspect(wt Worktree, base string) (State, error) {
 	sort.Strings(st.Untracked)
 	sort.Strings(st.IgnoredKept)
 
-	hidden, err := hiddenFiles(dir)
+	hidden, err := hiddenFiles(ctx, dir)
 	if err != nil {
 		return State{}, err
 	}
@@ -254,7 +270,7 @@ func Inspect(wt Worktree, base string) (State, error) {
 	if base != "" {
 		revArgs = append(revArgs, base)
 	}
-	out, err = git(dir, revArgs...)
+	out, err = git(ctx, dir, revArgs...)
 	if err != nil {
 		return State{}, err
 	}
@@ -264,7 +280,7 @@ func Inspect(wt Worktree, base string) (State, error) {
 	}
 
 	if base != "" {
-		out, err = git(dir, "rev-list", "--count", base+"..HEAD")
+		out, err = git(ctx, dir, "rev-list", "--count", base+"..HEAD")
 		if err != nil {
 			return State{}, err
 		}
@@ -273,7 +289,7 @@ func Inspect(wt Worktree, base string) (State, error) {
 		}
 
 		// Patches already in base (cherry-picked, rebased) are saved.
-		out, err = git(dir, "cherry", base, "HEAD")
+		out, err = git(ctx, dir, "cherry", base, "HEAD")
 		if err != nil {
 			return State{}, err
 		}
@@ -287,11 +303,11 @@ func Inspect(wt Worktree, base string) (State, error) {
 
 	// Squash-merged: merging HEAD into base changes nothing.
 	if base != "" && st.UnsavedCommits > 0 {
-		merged, mErr := git(dir, "merge-tree", "--write-tree", base, "HEAD")
+		merged, mErr := git(ctx, dir, "merge-tree", "--write-tree", base, "HEAD")
 		var exitErr *exec.ExitError
 		switch {
 		case mErr == nil:
-			baseTree, err := git(dir, "rev-parse", base+"^{tree}")
+			baseTree, err := git(ctx, dir, "rev-parse", base+"^{tree}")
 			if err != nil {
 				return State{}, err
 			}
@@ -307,14 +323,14 @@ func Inspect(wt Worktree, base string) (State, error) {
 	}
 
 	if wt.Detached {
-		out, err = git(dir, "for-each-ref", "--contains", "HEAD")
+		out, err = git(ctx, dir, "for-each-ref", "--contains", "HEAD")
 		if err != nil {
 			return State{}, err
 		}
 		st.DetachedUnreachable = strings.TrimSpace(out) == ""
 	}
 
-	out, err = git(dir, "rev-parse", "--path-format=absolute", "--git-dir")
+	out, err = git(ctx, dir, "rev-parse", "--path-format=absolute", "--git-dir")
 	if err != nil {
 		return State{}, err
 	}
@@ -335,8 +351,8 @@ func Inspect(wt Worktree, base string) (State, error) {
 // hiddenFiles lists tracked files git status cannot see changes in:
 // assume-unchanged (lowercase ls-files tag) and skip-worktree (tag S). A
 // skip-worktree file that is absent from disk in a sparse checkout is exempt.
-func hiddenFiles(dir string) ([]string, error) {
-	out, err := git(dir, "ls-files", "-v", "-z")
+func hiddenFiles(ctx context.Context, dir string) ([]string, error) {
+	out, err := git(ctx, dir, "ls-files", "-v", "-z")
 	if err != nil {
 		return nil, err
 	}
@@ -354,7 +370,7 @@ func hiddenFiles(dir string) ([]string, error) {
 		case tag >= 'a' && tag <= 'z':
 		case tag == 'S':
 			if !sparse {
-				v, err := git(dir, "config", "--type=bool", "--get", "core.sparseCheckout")
+				v, err := git(ctx, dir, "config", "--type=bool", "--get", "core.sparseCheckout")
 				var ee *exec.ExitError
 				if err != nil && !(errors.As(err, &ee) && ee.ExitCode() == 1) {
 					return nil, err
@@ -419,16 +435,16 @@ func (s State) Unsaved() []string {
 // for modified or untracked files it can see; it does NOT refuse for ignored
 // files, assume-unchanged/skip-worktree edits, or untracked files hidden by
 // status.showUntrackedFiles=no. Callers must Inspect immediately before Remove.
-func Remove(repo, path string) error {
-	_, err := git(repo, "worktree", "remove", path)
+func Remove(ctx context.Context, repo, path string) error {
+	_, err := git(ctx, repo, "worktree", "remove", path)
 	return err
 }
 
 // TrackedFiles returns the set of files git tracks in the worktree at path,
 // as slash-separated paths relative to it. It uses the same sanitized git
 // environment as the rest of the package.
-func TrackedFiles(path string) (map[string]bool, error) {
-	out, err := git(path, "ls-files", "-z")
+func TrackedFiles(ctx context.Context, path string) (map[string]bool, error) {
+	out, err := git(ctx, path, "ls-files", "-z")
 	if err != nil {
 		return nil, err
 	}

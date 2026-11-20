@@ -167,7 +167,7 @@ func finish(ctx context.Context, c Context, st *runState, alive func(string) (bo
 	if it.Decision.Class != item.Hidden && !it.Unregister && c.Secrets != nil {
 		var skip func(string, fs.DirEntry) bool
 		if it.Category == item.Worktree {
-			skip = worktreeSkip(it.Path)
+			skip = worktreeSkip(ctx, it.Path)
 		}
 		found, partial, err := c.Secrets.Scan(ctx, it.Path, skip)
 		it.Secrets, it.SecretsPartial = found, partial
@@ -187,8 +187,8 @@ func finish(ctx context.Context, c Context, st *runState, alive func(string) (bo
 // worktreeSkip skips git-tracked files (and .git) so only untracked and
 // ignored files are scanned. If the tracked set can't be read, nothing but
 // .git is skipped: scanning more is the safe direction.
-func worktreeSkip(path string) func(string, fs.DirEntry) bool {
-	tracked, err := gitwt.TrackedFiles(path)
+func worktreeSkip(ctx context.Context, path string) func(string, fs.DirEntry) bool {
+	tracked, err := gitwt.TrackedFiles(ctx, path)
 	if err != nil {
 		tracked = nil
 	}
@@ -262,7 +262,7 @@ func Recheck(ctx context.Context, c Context, it item.Item) (item.Item, error) {
 	)
 	switch it.Category {
 	case item.Worktree:
-		cand, err = recheckWorktree(c, st, it)
+		cand, err = recheckWorktree(ctx, c, st, it)
 	case item.Job, item.Scratch, item.Transcript:
 		cand, err = recheckByCollecting(ctx, c, st, it)
 	default:

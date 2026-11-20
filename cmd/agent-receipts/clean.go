@@ -104,10 +104,12 @@ func runClean(args []string, stdout, stderr io.Writer) int {
 		},
 		Trash:             trash.ForUser(e),
 		DeletePermanently: trash.DeletePermanently,
-		RemoveWorktree:    gitwt.Remove,
-		StateDir:          e.StateDir,
-		IsTTY:             isTTY,
-		Now:               e.Now,
+		RemoveWorktree: func(repo, path string) error {
+			return gitwt.Remove(context.Background(), repo, path) // per-call timeout inside
+		},
+		StateDir: e.StateDir,
+		IsTTY:    isTTY,
+		Now:      e.Now,
 	}
 	_, err := clean.Run(context.Background(), d, termUI{in: bufio.NewReader(os.Stdin), out: stdout})
 	switch {
