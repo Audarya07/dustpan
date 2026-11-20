@@ -183,3 +183,23 @@ func TestCacheRoundTrip(t *testing.T) {
 		t.Errorf("mode %v", fi.Mode())
 	}
 }
+
+func TestCompactNoOffers(t *testing.T) {
+	left := offer(item.Worktree, "/home/u/repo/.claude/worktrees/live", 5)
+	left.Decision = item.Decision{Class: item.LeftAlone, Reasons: []string{"session active 4 min ago"}}
+	left.Secrets = []secrets.Finding{{Path: ".env", Line: 1, RuleID: "github-pat", Masked: "ghp…1234"}}
+	var buf bytes.Buffer
+	report.RenderCompact(&buf, scan.Result{GeneratedAt: fixedTime, Items: []item.Item{left}}, false)
+	out := buf.String()
+	if !strings.HasPrefix(out, "Nothing to clean up right now.  1 contain secrets.\n") {
+		t.Errorf("headline: %q", out)
+	}
+	for _, want := range []string{"ghp…1234  GitHub token", "Still in use — left alone", "1 worktree   session active 4 min ago"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("missing %q in\n%s", want, out)
+		}
+	}
+	if strings.Contains(out, "Dead agent data") {
+		t.Error("no dead section without offers")
+	}
+}
