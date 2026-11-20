@@ -23,7 +23,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 	}
 	switch args[0] {
 	case "version":
-		fmt.Fprintf(stdout, "%s %s\n", env.AppName, env.Version)
+		fmt.Fprintf(stdout, "%s %s\n", env.AppName, env.VersionString())
 		return 0
 	case "reconstruct": // hidden: background continuation of day-one reconstruction
 		lowerPriority() // detached, low priority, like refresh

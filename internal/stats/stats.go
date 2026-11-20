@@ -104,7 +104,7 @@ func ShareText(s Stats) string {
 	fmt.Fprintf(&b, "  items cleaned, kept:    %d cleaned, %d kept (keep rate %s)\n", s.ItemsCleaned, s.ItemsKept, keep)
 	fmt.Fprintf(&b, "  nudges:                 %d shown, %d followed\n", s.NudgesShown, s.NudgesFollowed)
 	fmt.Fprintf(&b, "  first report took:      %s\n", first)
-	fmt.Fprintf(&b, "(generated locally by %s %s; nothing was sent anywhere)\n", env.AppName, env.Version)
+	fmt.Fprintf(&b, "(generated locally by %s %s; nothing was sent anywhere)\n", env.AppName, env.VersionString())
 	return b.String()
 }
 

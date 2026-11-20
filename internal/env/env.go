@@ -4,6 +4,7 @@ package env
 import (
 	"os"
 	"path/filepath"
+	"runtime/debug"
 	"time"
 )
 
@@ -11,7 +12,28 @@ import (
 const AppName = "dustpan"
 
 // Version is set via -ldflags "-X .../internal/env.Version=...".
+// Use VersionString to read it.
 var Version = "dev"
+
+// VersionString returns the build's version: the -ldflags value if one was
+// set, otherwise the module version Go records for `go install ...@vX.Y.Z`,
+// otherwise "dev".
+func VersionString() string {
+	bi, ok := debug.ReadBuildInfo()
+	return versionFrom(Version, bi, ok)
+}
+
+func versionFrom(ldflag string, bi *debug.BuildInfo, ok bool) string {
+	if ldflag != "" && ldflag != "dev" {
+		return ldflag
+	}
+	if ok && bi != nil {
+		if v := bi.Main.Version; v != "" && v != "(devel)" {
+			return v
+		}
+	}
+	return "dev"
+}
 
 // Env holds the locations and clock the rest of the program depends on.
 type Env struct {
