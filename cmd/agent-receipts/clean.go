@@ -70,11 +70,15 @@ func runClean(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "%s: clean takes no arguments\n", env.AppName)
 		return 2
 	}
+	e := env.FromOS()
+	if err := checkEnv(e); err != nil { // before anything is scanned or touched
+		fmt.Fprintf(stderr, "%s: clean: %v\n", env.AppName, err)
+		return 2
+	}
 	if !isTTY() { // before anything is scanned or touched
 		fmt.Fprintln(stderr, clean.ErrNoTerminal)
 		return 2
 	}
-	e := env.FromOS()
 	if err := e.EnsureStateDir(); err != nil {
 		fmt.Fprintf(stderr, "%s: clean: %v\n", env.AppName, err)
 		return 1

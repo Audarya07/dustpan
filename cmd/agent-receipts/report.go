@@ -152,7 +152,12 @@ func runReport(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "%s: report: --details and --json are mutually exclusive\n", env.AppName)
 		return 2
 	}
-	res, err := collect(env.FromOS(), true)
+	e := env.FromOS()
+	if err := checkEnv(e); err != nil {
+		fmt.Fprintf(stderr, "%s: report: %v\n", env.AppName, err)
+		return 2
+	}
+	res, err := collect(e, true)
 	if err != nil && res.GeneratedAt.IsZero() {
 		fmt.Fprintf(stderr, "%s: report: %v\n", env.AppName, err)
 		return 1
@@ -179,6 +184,10 @@ func runReport(args []string, stdout, stderr io.Writer) int {
 func runRefresh(stderr io.Writer) int {
 	_ = unix.Setpriority(unix.PRIO_PROCESS, 0, 10) // detached, low priority
 	e := env.FromOS()
+	if err := checkEnv(e); err != nil {
+		fmt.Fprintf(stderr, "%s: refresh: %v\n", env.AppName, err)
+		return 2
+	}
 	release, ok := refreshlock.TryAcquire(e.StateDir)
 	if !ok {
 		return 0 // another refresh is running

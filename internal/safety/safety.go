@@ -66,6 +66,9 @@ func NeverTouch(path string, e env.Env, mainCheckouts, extra []string) (bool, st
 	if path == "" {
 		return true, "empty path"
 	}
+	if !filepath.IsAbs(path) || receipts.HasDotDot(path) {
+		return true, "not a plain absolute path"
+	}
 	paths := variants(e, path)
 	for _, p := range paths {
 		if p == "/" {
@@ -178,6 +181,10 @@ func configFile(p string, e env.Env) string {
 	return ""
 }
 
+// trustedSources are the only evidence sources that can prove an agent made
+// an item; Strong from anything else counts as weak.
+var trustedSources = map[string]bool{"agent-folder": true, "receipt": true, "transcript": true}
+
 func keep(reasons ...string) item.Decision {
 	return item.Decision{Class: item.LeftAlone, Reasons: reasons}
 }
@@ -188,11 +195,16 @@ func Evaluate(in Inputs) item.Decision {
 	if ok, why := NeverTouch(it.Path, in.Env, in.MainCheckouts, in.ExtraNeverTouch); ok {
 		return item.Decision{Class: item.Hidden, Reasons: []string{why}}
 	}
+	switch it.Category {
+	case item.Worktree, item.Job, item.Scratch, item.Transcript:
+	default:
+		return keep("unknown item type")
+	}
 	ev := it.Evidence
 	if !ev.Strong && len(ev.Weak) == 0 {
 		return item.Decision{Class: item.Hidden, Reasons: []string{"no evidence an agent made this"}}
 	}
-	if !ev.Strong {
+	if !ev.Strong || !trustedSources[ev.Source] {
 		return item.Decision{Class: item.LeftAlone, DetailsOnly: true,
 			Reasons: []string{"only weak evidence an agent made this"}}
 	}

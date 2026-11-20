@@ -374,3 +374,19 @@ func TestPruneSnapshots(t *testing.T) {
 		t.Error("new snapshot removed")
 	}
 }
+
+// R30: a raw path with a ".." element is never recorded.
+func TestPostToolUseDropsDotDotPaths(t *testing.T) {
+	f := testDeps(t)
+	for _, c := range []struct{ cwd, tool, input string }{
+		{"/repo", "Write", `{"file_path":"` + f.tmp + `/a/../b.txt"}`},
+		{"/repo", "Bash", `{"command":"mkdir -p ` + f.tmp + `/x/../y"}`},
+		{f.tmp + "/sub/..", "Write", `{"file_path":"c.txt"}`},
+		{f.tmp + "/sub/..", "Bash", `{"command":"mkdir d"}`},
+		{"/repo", "Write", `{"file_path":"` + f.tmp + `/ok.txt"}`},
+	} {
+		must(t, hook.Handle(ctx(), f.Deps, "PostToolUse", strings.NewReader(payload("PostToolUse", "s1", c.cwd, c.tool, c.input)), io.Discard))
+	}
+	rs, _ := f.Store.Load()
+	wantPaths(t, rs, receipts.KindCreated, filepath.Join(f.tmp, "ok.txt"))
+}

@@ -9,6 +9,8 @@ import (
 	"strings"
 
 	"mvdan.cc/sh/v3/syntax"
+
+	"github.com/Audarya07/agent-receipts/internal/receipts"
 )
 
 // Output is a path a command creates.
@@ -52,13 +54,13 @@ func (w *walker) resolve(p string) (string, bool) {
 	if p == "" || strings.HasPrefix(p, "/dev/") || p == "/dev" {
 		return "", false
 	}
-	if strings.HasPrefix(p, "~") {
+	if strings.HasPrefix(p, "~") || receipts.HasDotDot(p) {
 		return "", false
 	}
 	if filepath.IsAbs(p) {
 		return filepath.Clean(p), true
 	}
-	if w.cwd == "" {
+	if w.cwd == "" || receipts.HasDotDot(w.cwd) {
 		return "", false
 	}
 	return filepath.Join(w.cwd, p), true

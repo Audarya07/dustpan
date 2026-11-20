@@ -244,3 +244,26 @@ func TestSessionReceiptsCarryCanonicalCwd(t *testing.T) {
 		t.Fatalf("session receipts: %d", n)
 	}
 }
+
+// R30: a raw path with a ".." element is never recorded: lexical cleaning
+// can disagree with the filesystem when a component is a symlink.
+func TestParseFileDropsDotDotPaths(t *testing.T) {
+	e, _, tmp, cwd := fixture(t)
+	line := func(ts, cwd, tool, input string) string {
+		return `{"type":"assistant","sessionId":"s9","timestamp":"` + ts + `","cwd":"` + cwd +
+			`","message":{"content":[{"type":"tool_use","id":"x","name":"` + tool + `","input":` + input + `}]}}` + "\n"
+	}
+	body := line("2026-11-10T09:00:01Z", cwd, "Write", `{"file_path":"`+tmp+`/a/../b.txt"}`) +
+		line("2026-11-10T09:00:02Z", cwd, "Bash", `{"command":"mkdir -p `+tmp+`/x/../y"}`) +
+		line("2026-11-10T09:00:03Z", tmp+"/sub/..", "Write", `{"file_path":"c.txt"}`) +
+		line("2026-11-10T09:00:04Z", cwd, "Bash", `{"command":"cd `+tmp+`/q/.. && mkdir d"}`) +
+		line("2026-11-10T09:00:05Z", cwd, "Write", `{"file_path":"`+tmp+`/ok.txt"}`)
+	file := filepath.Join(t.TempDir(), "s9.jsonl")
+	must(t, os.WriteFile(file, []byte(body), 0o644))
+	var got []receipts.Receipt
+	_, err := transcripts.ParseFile(e, file, 0, func(r receipts.Receipt) { got = append(got, r) })
+	must(t, err)
+	if p := created(got); !slices.Equal(p, []string{tmp + "/ok.txt"}) {
+		t.Fatalf("created = %v, want only ok.txt", p)
+	}
+}

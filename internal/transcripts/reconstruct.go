@@ -210,6 +210,9 @@ func toReceipts(e env.Env, cwd string, at time.Time, tool, filePath, notebookPat
 	var rs []receipts.Receipt
 	for _, o := range outs {
 		p := o.path
+		if receipts.HasDotDot(p) || (!filepath.IsAbs(p) && receipts.HasDotDot(cwd)) {
+			continue // never resolve ".." lexically
+		}
 		if !filepath.IsAbs(p) {
 			if cwd == "" {
 				continue

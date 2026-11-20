@@ -181,7 +181,7 @@ func predates(r receipts.Receipt) bool {
 		return true
 	}
 	if r.At.IsZero() {
-		return false
+		return true // no time: nothing shows the path is newer than the receipt
 	}
 	cutoff := r.At.Add(-receiptClockSlack)
 	if fi.ModTime().Before(cutoff) {

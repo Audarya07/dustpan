@@ -15,7 +15,13 @@ func TestOutputPaths(t *testing.T) {
 		{"go build -o /tmp/my-bin ./cmd/x", "/r", []cmdparse.Output{{"/tmp/my-bin", false, "-o"}}},
 		{"cd /tmp && go build -o my-main-bin ./...", "/r", []cmdparse.Output{{"/tmp/my-main-bin", false, "-o"}}},
 		{"git -C /r/demo-app worktree add -b feature-1234 /tmp/wt-931 origin/main", "/x", []cmdparse.Output{{"/tmp/wt-931", true, "git worktree add"}}},
-		{"git worktree add ../wt", "/r/repo", []cmdparse.Output{{"/r/wt", true, "git worktree add"}}},
+		// ".." is never resolved lexically (a symlinked component could make
+		// it mean somewhere else), so such paths and cds are dropped (R30).
+		{"git worktree add ../wt", "/r/repo", nil},
+		{"mkdir /tmp/a/../b", "/r", nil},
+		{"cd .. && mkdir x", "/r/repo", nil},
+		{"mkdir x", "/r/../s", nil},
+		{"git -C ../o worktree add wt", "/r/repo", nil},
 		{"echo hi > /tmp/a.txt 2>/dev/null", "/r", []cmdparse.Output{{"/tmp/a.txt", false, ">"}}},
 		{"cp alpha.go /tmp/alpha.go", "/r", []cmdparse.Output{{"/tmp/alpha.go", false, "cp"}}},
 		{"mkdir -p /tmp/imgs-snap", "/r", []cmdparse.Output{{"/tmp/imgs-snap", true, "mkdir"}}},

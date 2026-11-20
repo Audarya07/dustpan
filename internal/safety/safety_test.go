@@ -267,3 +267,35 @@ func TestNonWorktreeNeedsCheckoutCheck(t *testing.T) {
 		i.GitCheckout = func(string) (string, error) { return "contains a git checkout", nil }
 	}), item.LeftAlone, "contains a git checkout")
 }
+
+// R30: paths that are relative or carry ".." are never-touch.
+func TestNeverTouchRelativeAndDotDot(t *testing.T) {
+	e := env.Env{Home: "/Users/u", TmpDirs: []string{"/private/tmp"}}
+	for _, p := range []string{"tmp/x", "./x", "/private/tmp/a/../b", "/private/tmp/..", "/private/tmp/x/.."} {
+		if ok, _ := safety.NeverTouch(p, e, nil, nil); !ok {
+			t.Errorf("%s should be never-touch", p)
+		}
+	}
+	if ok, why := safety.NeverTouch("/private/tmp/a..b", e, nil, nil); ok {
+		t.Errorf("a..b is a plain name, got never-touch: %s", why)
+	}
+}
+
+func TestEvaluateUnknownCategoryKept(t *testing.T) {
+	in := with(offerableInputs(t), func(i *safety.Inputs) { i.Item.Category = "mystery" })
+	wantReason(t, in, item.LeftAlone, "unknown item type")
+}
+
+// R30: Strong is trusted only from the sources that can prove agent origin.
+func TestStrongNeedsTrustedSource(t *testing.T) {
+	base := offerableInputs(t)
+	for _, src := range []string{"agent-folder", "receipt", "transcript"} {
+		wantClass(t, safety.Evaluate(with(base, func(i *safety.Inputs) { i.Item.Evidence.Source = src })), item.Offer)
+	}
+	for _, src := range []string{"snapshot", "hook", "", "made-up"} {
+		d := safety.Evaluate(with(base, func(i *safety.Inputs) { i.Item.Evidence.Source = src }))
+		if d.Class != item.LeftAlone || !d.DetailsOnly {
+			t.Errorf("source %q: %+v, want details-only left alone", src, d)
+		}
+	}
+}

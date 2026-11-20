@@ -20,6 +20,18 @@ func Within(path, dir string) bool {
 	return strings.HasPrefix(p, d+"/")
 }
 
+// HasDotDot reports whether the raw path has a ".." element. Such paths are
+// never recorded or touched: cleaning ".." lexically can disagree with the
+// filesystem when an earlier component is a symlink.
+func HasDotDot(path string) bool {
+	for _, el := range strings.Split(path, "/") {
+		if el == ".." {
+			return true
+		}
+	}
+	return false
+}
+
 // Fold lowercases a path on macOS, whose default filesystem is
 // case-insensitive, and returns it unchanged elsewhere. Folding only adds
 // matches, so safety comparisons that fold fail closed.

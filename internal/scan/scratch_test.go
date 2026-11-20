@@ -328,3 +328,15 @@ func TestScratchWeakReceiptIsDetailsOnly(t *testing.T) {
 		t.Fatalf("weak item missing from details:\n%s", buf.String())
 	}
 }
+
+// R30: a receipt without a time can't prove the path is new.
+func TestScratchZeroTimeReceiptIsWeak(t *testing.T) {
+	h := newFixtureHome(t)
+	h.write(h.tmp, "f", "x")
+	r := created(h.tmpPath("f"), false, "s1")
+	r.At = time.Time{}
+	it := wantItem(t, mustRun(t, h.context(h.index(r))), h.tmpPath("f"), item.LeftAlone)
+	if it.Evidence.Strong || !it.Decision.DetailsOnly {
+		t.Fatalf("zero-time receipt: %+v", it)
+	}
+}

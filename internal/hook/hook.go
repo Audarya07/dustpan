@@ -174,6 +174,9 @@ func postToolUse(d Deps, p Input) error {
 	var rs []receipts.Receipt
 	for _, c := range found {
 		path := c.path
+		if receipts.HasDotDot(path) || (!filepath.IsAbs(path) && receipts.HasDotDot(p.Cwd)) {
+			continue // never resolve ".." lexically
+		}
 		if !filepath.IsAbs(path) {
 			path = filepath.Join(p.Cwd, path)
 		}
