@@ -1,13 +1,13 @@
 module github.com/Audarya07/dustpan
 
-go 1.25.0
+go 1.26.0
 
 require (
-	github.com/pelletier/go-toml/v2 v2.2.3
+	github.com/pelletier/go-toml/v2 v2.4.3
 	github.com/zricethezav/gitleaks/v8 v8.30.1
-	golang.org/x/sys v0.45.0
-	golang.org/x/term v0.43.0
-	mvdan.cc/sh/v3 v3.12.0
+	golang.org/x/sys v0.50.0
+	golang.org/x/term v0.48.0
+	mvdan.cc/sh/v3 v3.14.1
 )
 
 require (
