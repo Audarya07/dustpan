@@ -142,12 +142,21 @@ There's no telemetry and dustpan never connects to the network. Everything it ke
 
 ## Uninstall
 
+If you installed the plugin, remove it first, inside Claude Code:
+
 ```
 /plugin uninstall dustpan@dustpan
 /plugin marketplace remove dustpan
-rm "$(command -v dustpan)"
-rm -r ~/.local/state/dustpan
 ```
+
+Then remove the binary from Go's bin folder, and dustpan's own state and config folders:
+
+```sh
+GOBIN_DIR="$(go env GOBIN)"; rm -f "${GOBIN_DIR:-$(go env GOPATH)/bin}/dustpan"
+rm -rf "${XDG_STATE_HOME:-$HOME/.local/state}/dustpan" "${XDG_CONFIG_HOME:-$HOME/.config}/dustpan"
+```
+
+This doesn't touch anything dustpan moved to your Trash; those items stay there until you empty it.
 
 ## License
 
