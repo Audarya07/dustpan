@@ -21,8 +21,8 @@ import (
 var HomeDir = func() string { h, _ := os.UserHomeDir(); return h }()
 
 const (
-	headlineIncomplete = "Still reading past sessions — this report may be incomplete."
-	rotateNote         = "Deleting the file doesn't undo a leak — rotate the key."
+	headlineIncomplete = "Still reading past sessions, so this report may be incomplete."
+	rotateNote         = "Deleting the file doesn't undo a leak. Rotate the key."
 	maxSecretLines     = 10
 )
 
@@ -209,7 +209,7 @@ func RenderCompact(w io.Writer, r scan.Result, color bool) {
 	}
 
 	if len(secret) > 0 {
-		fmt.Fprintf(w, "\n%s Secrets in leftovers  — rotate these first\n", p.red("■"))
+		fmt.Fprintf(w, "\n%s Secrets in leftovers (rotate these first)\n", p.red("■"))
 		lines := secretLines(secret)
 		shown := lines
 		if len(shown) > maxSecretLines {
@@ -266,7 +266,7 @@ func RenderCompact(w io.Writer, r scan.Result, color bool) {
 	}
 
 	if len(left) > 0 {
-		fmt.Fprintf(w, "\n%s Still in use — left alone\n", p.green("■"))
+		fmt.Fprintf(w, "\n%s Still in use, left alone\n", p.green("■"))
 		type group struct {
 			reason string
 			cat    item.Category
@@ -351,7 +351,7 @@ func age(now, t time.Time) string {
 
 func attribution(e item.Evidence) string {
 	if !e.Strong {
-		return "best guess — no receipt"
+		return "best guess (no receipt)"
 	}
 	who := ""
 	if e.Agent != "" {
@@ -401,7 +401,7 @@ func RenderDetails(w io.Writer, r scan.Result, color bool) {
 			verdict += " (details only)"
 		}
 		if len(it.Decision.Reasons) > 0 {
-			verdict += " — " + strings.Join(it.Decision.Reasons, "; ")
+			verdict += ": " + strings.Join(it.Decision.Reasons, "; ")
 		}
 		fmt.Fprintf(w, "  class:    %s\n", verdict)
 		if it.DeadReason != "" {
@@ -411,7 +411,7 @@ func RenderDetails(w io.Writer, r scan.Result, color bool) {
 			fmt.Fprintf(w, "  %s %s  %s  %s:%d\n", p.red("secret:"), f.Masked, secretLabel(f.RuleID), SecretPath(it, f), f.Line)
 		}
 		if it.SecretsPartial {
-			fmt.Fprintln(w, "  partially scanned — more secrets may exist")
+			fmt.Fprintln(w, "  partially scanned, more secrets may exist")
 		}
 		if it.Category == item.Transcript {
 			fmt.Fprintln(w, "  you can't resume this session after deleting it")

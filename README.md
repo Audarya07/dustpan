@@ -1,20 +1,27 @@
 # dustpan
 
-**See what your coding agents left behind — and safely sweep it up.**
+See what your coding agents left behind on your machine, and clean it up safely.
 
-Coding agents (Claude Code, Codex, Cursor) leave things on your machine: abandoned git worktrees, finished job folders, build binaries and scratch files in `/tmp`, old session transcripts. Nobody notices, so two things happen quietly:
+## Why
 
-- **Disk space disappears**, and it isn't obvious where it went.
-- **Secrets pile up in places you never look**: an `.env` copied into a forgotten worktree, cloud credentials in a finished job's temp folder.
+If you use Claude Code, Codex or Cursor a lot, they leave things lying around: git worktrees nobody went back to, finished job folders, build binaries and scratch files in `/tmp`, old session transcripts. You don't notice it happening. Two problems come out of that:
 
-dustpan finds those leftovers, tells you how much space they take, flags the ones that contain secrets, and lets you clean them up one item at a time. It also keeps **receipts** — a record of which agent session created what — so instead of guessing "this looks old", it can say "the session that made this ended 3 days ago and nothing has touched it since".
+1. Disk space slowly disappears and it's not obvious where it went.
+2. Secrets end up in places you never look, like an `.env` copied into a forgotten worktree or cloud credentials sitting in a finished job's temp folder.
+
+dustpan finds these leftovers, shows how much space they use, points out the ones that contain secrets, and lets you clean them up one at a time.
+
+It also keeps receipts: a small record of which agent session created which file or folder. That way it can tell you "the session that made this ended 3 days ago and nothing has touched it since", instead of guessing from file dates.
+
+Here's what a report looks like:
 
 ```
 Your agents left 3.1 GB behind in 14 places.  2 contain secrets.
 
-■ Secrets in leftovers  — rotate these first
+■ Secrets in leftovers (rotate these first)
   AKIA…7Q2X  AWS key  ~/.claude/jobs/7f3a91c2/tmp/acct_prod.json
   .env ×3    values   ~/repo/.claude/worktrees/x/.env
+  Deleting the file doesn't undo a leak. Rotate the key.
 
 ■ Dead agent data                      3.1 GB
   Abandoned worktrees           1.6 GB   2, no unsaved work
@@ -22,105 +29,108 @@ Your agents left 3.1 GB behind in 14 places.  2 contain secrets.
   Finished / stale agent jobs   318 MB   4 folders
   Scratch files in /tmp         180 MB   8 files
 
-■ Still in use — left alone
+■ Still in use, left alone
   2 worktrees on feature-1234   session active 4 min ago
 
 → clean   → report --details
 ```
 
-## Quick start
+## Getting started
 
-Requires macOS or Linux and Go 1.25+.
+You need macOS or Linux, and Go 1.25 or newer.
 
-1. **Install the binary**
+Install it:
 
-   ```sh
-   go install github.com/Audarya07/dustpan/cmd/dustpan@latest   # once published
-   # or, from a checkout:
-   go build -o dustpan ./cmd/dustpan && mv dustpan ~/go/bin/      # any folder on your PATH
-   ```
+```sh
+go install github.com/Audarya07/dustpan/cmd/dustpan@latest
+```
 
-2. **See what's there** (read-only, takes a few seconds):
+Run a report. This only reads, and takes a few seconds:
 
-   ```sh
-   dustpan report            # the summary above
-   dustpan report --details  # every item, why it's listed, which session made it
-   ```
+```sh
+dustpan report
+```
 
-3. **Clean up** — in your own terminal window:
+Add `--details` to see every item, why it's listed and which session created it.
 
-   ```sh
-   dustpan clean
-   ```
+When you want to clean up, run this in your own terminal window:
 
-   It shows one item at a time and asks: delete (to the Trash), keep, or skip the rest.
+```sh
+dustpan clean
+```
 
-4. **Optional: the Claude Code plugin.** Adds hooks that record receipts as your agents work, a once-a-day reminder when something new turns up, and a `/leftovers` command that lets the agent explain the report to you (it can never delete anything).
+It goes through the items one by one and asks what to do with each: move it to the Trash, keep it, or stop.
 
-   ```
-   /plugin marketplace add <path-to-dustpan-repo>/plugin
-   /plugin install dustpan@dustpan
-   ```
+### Claude Code plugin (optional)
 
-   The hooks need the `dustpan` binary on your `PATH`; without it they silently do nothing.
+The plugin records receipts while your agents work, shows a short reminder at most once a day when something new turns up, and adds a `/leftovers` command so the agent can walk you through the report. The agent can never delete anything.
 
-## What it looks at
+Clone this repo, then in Claude Code:
 
-| Leftover | Where | Considered dead when |
+```
+/plugin marketplace add /path/to/dustpan/plugin
+/plugin install dustpan@dustpan
+```
+
+The hooks need the `dustpan` binary on your `PATH`. If it's not there, they quietly do nothing.
+
+## What it looks for
+
+| Leftover | Where | Counted as leftover when |
 |---|---|---|
-| Abandoned worktrees | `<repo>/.claude/worktrees`, `~/.codex/worktrees`, `~/.cursor/worktrees`, and worktrees an agent created elsewhere | no commits, or merged/pushed — and nothing unsaved |
-| Finished or stale agent jobs | `~/.claude/jobs` | done, or idle for 14+ days |
+| Abandoned worktrees | `<repo>/.claude/worktrees`, `~/.codex/worktrees`, `~/.cursor/worktrees`, plus worktrees an agent created elsewhere | it has no commits, or its work is merged or pushed, and nothing is unsaved |
+| Finished or stale agent jobs | `~/.claude/jobs` | the job is done, or has been idle for 14 days or more |
 | Scratch files | `/tmp` and `$TMPDIR` | an agent created it and that session has ended |
-| Old transcripts | `~/.claude/projects`, `~/.codex/sessions` | past the agent's retention (Claude's `cleanupPeriodDays`, default 30 days) |
+| Old transcripts | `~/.claude/projects`, `~/.codex/sessions` | it's past the agent's retention period (30 days unless you changed Claude's `cleanupPeriodDays`) |
 
-Each of these is also checked for secrets using the [gitleaks](https://github.com/gitleaks/gitleaks) rule set.
+Everything it finds is also checked for secrets using the [gitleaks](https://github.com/gitleaks/gitleaks) rules.
 
-Only Claude Code sessions get receipts in this version, so only they show which session left something. Codex and Cursor worktrees and old Codex transcripts are still cleaned up under the same safety rules. Cursor transcripts aren't scanned.
+For now only Claude Code sessions get receipts, so only those show which session left something behind. Codex and Cursor worktrees and old Codex transcripts are still found and cleaned under the same rules. Cursor transcripts aren't scanned yet.
 
-## Safety promises
+## How it keeps your stuff safe
 
-dustpan is built around one rule: **when unsure, keep it.**
+The rule throughout is simple: if dustpan isn't sure, it leaves the item alone and tells you why.
 
-- **It never deletes on its own.** Reports, hooks and `/leftovers` only read. The only thing that deletes is `dustpan clean`, which needs a real terminal and your answer for every single item.
-- **Nothing in use is offered.** Not if a process has files open there, its agent session is still running, it changed in the last 24 hours, or a git operation is in progress. Each item is re-checked right before acting.
-- **Nothing unsaved is offered.** Worktrees with uncommitted changes, ignored files that aren't rebuildable (like `.env`), or commits that exist nowhere else are kept. So is anything that contains or sits inside a git checkout.
-- **Your own things are left alone.** Only items with evidence that an agent created them are offered. Your main checkouts, files inside git checkouts, agent settings and memory, and shell dotfiles are never touched.
-- **Deleting can be undone.** Items go to the Trash. (A worktree restored from the Trash is no longer registered with git; its branch is kept, so check it out again in a new worktree.) dustpan never empties the Trash for you.
-- **Secrets get extra care.** Because a trashed secret is still readable, items containing secrets also offer permanent deletion — you must type `delete` to confirm. Deleting does not undo a leak: if a key was exposed, rotate it.
-- **Secrets are never shown in full.** At most the first 4 and last 4 characters appear. dustpan stores paths and timestamps only, never file contents.
+- Nothing is deleted on its own. `report`, the hooks and `/leftovers` only read. The one command that deletes is `dustpan clean`, and it needs a real terminal and your answer for each item.
+- Anything still in use is skipped. That covers files a running process has open, sessions that are still going, anything changed in the last 24 hours, and repos in the middle of a rebase or merge. Each item is checked again right before anything happens to it.
+- Unsaved work is never offered. Worktrees with uncommitted changes, ignored files you can't regenerate (like `.env`), or commits that don't exist anywhere else are kept. So is anything that contains a git checkout or sits inside one.
+- Only things an agent made are offered. If there's no evidence an agent created something, it isn't touched. Your own checkouts, agent settings and memory, and shell dotfiles are always off limits.
+- You can undo a cleanup. Items go to the Trash, and dustpan never empties it for you. One catch: a worktree you restore from the Trash is no longer registered with git. Its branch is still there, so you can check it out into a new worktree.
+- Secrets get extra handling. A secret in the Trash is still readable, so for those items dustpan also offers permanent deletion, which you confirm by typing `delete`. Keep in mind that deleting a leaked key doesn't make it safe again. Rotate it.
+- Secrets are never printed in full. You'll see at most the first 4 and last 4 characters. dustpan only stores file paths and timestamps, never file contents.
 
-## Will it slow me down?
+## Does it slow anything down?
 
-No — it's designed to stay out of the way. Measured on a MacBook (Apple Silicon):
+Not noticeably. These numbers are from an Apple Silicon MacBook:
 
-| What | When | Cost |
+| What | When it runs | Cost |
 |---|---|---|
-| Hook after a tool call | every Bash/Write call by the agent | under 10 ms |
-| Hook at session start | once per session | ~50 ms (a few hundred ms on the very first run after install) |
-| Background refresh | once when a session ends | ~3.5 s, at low CPU priority, ~55 MB memory |
-| `dustpan report` | when you run it | ~1–4 s |
-| State on disk | — | a few hundred KB |
+| Hook after a tool call | each time the agent runs a shell command or writes a file | under 10 ms |
+| Hook at session start | once per session | about 50 ms, a few hundred ms on the very first run |
+| Background refresh | once when a session ends | about 3.5 s at low CPU priority, about 55 MB of memory |
+| `dustpan report` | when you run it | 1 to 4 s |
+| Files on disk | | a few hundred KB |
 
-Hooks have a hard 450 ms limit and always exit cleanly, so they can't block or break an agent session. The reminder appears at most once a day, and only when something new turns up (a new secret, or more than 1 GB of new leftovers); if you ignore it a few times, it drops to weekly.
+The hooks give up after 450 ms and always exit cleanly, so they can't hold up or break an agent session. The reminder shows at most once a day, only when there's something new (a new secret, or more than 1 GB of new leftovers), and backs off to once a week if you keep ignoring it.
 
 ## Commands
 
 | Command | What it does |
 |---|---|
-| `dustpan report` | Summary of leftovers. `--details` lists every item; `--json` for scripts. Read-only. |
-| `dustpan clean` | Walks through cleanable items one at a time: delete / keep / skip the rest. |
-| `dustpan stats` | Your local numbers: space recovered, secrets found, how often you kept items. `--share` prints an anonymised summary you can paste anywhere. |
-| `/leftovers` | (plugin) Shows the report inside Claude Code and explains items. Never deletes. |
+| `dustpan report` | Shows the summary. `--details` lists every item, `--json` gives machine-readable output. Read only. |
+| `dustpan clean` | Goes through cleanable items one at a time and asks before each. |
+| `dustpan stats` | Your own numbers: space recovered, secrets found, how often you chose to keep things. `--share` prints a version with no paths or names that you can paste anywhere. |
+| `/leftovers` | Plugin command. Shows the report inside Claude Code and explains the items. Never deletes. |
 
 ## Privacy
 
-No telemetry. dustpan makes no network connections, ever. Everything stays on your machine in `~/.local/state/dustpan/` (or `$XDG_STATE_HOME/dustpan/`), created private to your user (`0700` folders, `0600` files).
+There's no telemetry and dustpan never connects to the network. Everything it keeps lives in `~/.local/state/dustpan/` (or `$XDG_STATE_HOME/dustpan/`), readable only by your user.
 
-## Known limits
+## Known limitations
 
 - macOS and Linux only.
-- On the first run, receipts are rebuilt from existing Claude Code transcripts. Leftovers whose transcripts are already gone can't be attributed, so they aren't offered.
-- Worktrees an agent created with a relative path that goes up a level (`git worktree add ../wt`) aren't attributed yet.
+- On first run it rebuilds receipts from your existing Claude Code transcripts. If the transcript for a leftover is already gone, dustpan can't tell who made it, so it won't offer to clean it.
+- Worktrees an agent created with a path like `git worktree add ../wt` aren't attributed yet.
 
 ## Uninstall
 
@@ -130,3 +140,7 @@ No telemetry. dustpan makes no network connections, ever. Everything stays on yo
 rm "$(command -v dustpan)"
 rm -r ~/.local/state/dustpan
 ```
+
+## License
+
+MIT, see [LICENSE](LICENSE).

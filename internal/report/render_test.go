@@ -124,7 +124,7 @@ func TestIncompleteLine(t *testing.T) {
 	var buf bytes.Buffer
 	report.RenderCompact(&buf, r, false)
 	lines := strings.Split(buf.String(), "\n")
-	if lines[1] != "Still reading past sessions — this report may be incomplete." {
+	if lines[1] != "Still reading past sessions, so this report may be incomplete." {
 		t.Errorf("line 2: %q", lines[1])
 	}
 }
@@ -137,7 +137,7 @@ func TestDetails(t *testing.T) {
 	report.RenderDetails(&buf, r, false)
 	out := buf.String()
 	for _, want := range []string{
-		`session "cleanup" (claude)`, "best guess — no receipt", "only weak evidence an agent made this",
+		`session "cleanup" (claude)`, "best guess (no receipt)", "only weak evidence an agent made this",
 		"(details only)", "partially scanned", "you can't resume this session after deleting it",
 		"sk…aaaa", "~/.claude/jobs/7f3a91c2", "40d old",
 	} {
@@ -194,7 +194,7 @@ func TestCompactNoOffers(t *testing.T) {
 	if !strings.HasPrefix(out, "Nothing to clean up right now.  1 contain secrets.\n") {
 		t.Errorf("headline: %q", out)
 	}
-	for _, want := range []string{"ghp…1234  GitHub token", "Still in use — left alone", "1 worktree   session active 4 min ago"} {
+	for _, want := range []string{"ghp…1234  GitHub token", "Still in use, left alone", "1 worktree   session active 4 min ago"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("missing %q in\n%s", want, out)
 		}

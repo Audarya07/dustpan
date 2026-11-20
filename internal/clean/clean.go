@@ -179,7 +179,7 @@ func age(now, t time.Time) string {
 
 func attribution(e item.Evidence) string {
 	if !e.Strong {
-		return "best guess — no receipt"
+		return "best guess (no receipt)"
 	}
 	who := ""
 	if e.Agent != "" {
@@ -251,7 +251,7 @@ func act(ctx context.Context, d Deps, ui UI, it item.Item, ans string, sum *Summ
 			return nil
 		}
 		if err := d.RemoveWorktree(fresh.Repo, fresh.Path); err != nil {
-			ui.Printf("  skipped: couldn't unregister (%v) — run `git worktree prune`\n", err)
+			ui.Printf("  skipped: couldn't unregister (%v); run `git worktree prune`\n", err)
 			sum.Skipped++
 			return nil
 		}
@@ -307,7 +307,7 @@ func act(ctx context.Context, d Deps, ui UI, it item.Item, ans string, sum *Summ
 			if ans == "p" {
 				verb = "deleted"
 			}
-			ui.Printf("  %s, but git still lists it: %v — run `git worktree prune`\n", verb, err)
+			ui.Printf("  %s, but git still lists it: %v. Run `git worktree prune`\n", verb, err)
 		}
 	}
 
@@ -330,7 +330,7 @@ func act(ctx context.Context, d Deps, ui UI, it item.Item, ans string, sum *Summ
 
 func finish(ui UI, d Deps, sum Summary) {
 	if sum.Trashed > 0 {
-		ui.Printf("\nMoved %d %s (%s) to the Trash — empty it to free the space.\n",
+		ui.Printf("\nMoved %d %s (%s) to the Trash. You can empty it to free the space.\n",
 			sum.Trashed, noun(sum.Trashed), report.HumanSize(sum.BytesTrashed))
 	}
 	if sum.Deleted > 0 {
