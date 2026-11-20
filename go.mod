@@ -1,12 +1,12 @@
 module github.com/Audarya07/dustpan
 
-go 1.25
+go 1.25.0
 
 require (
 	github.com/pelletier/go-toml/v2 v2.2.3
 	github.com/zricethezav/gitleaks/v8 v8.30.1
-	golang.org/x/sys v0.33.0
-	golang.org/x/term v0.32.0
+	golang.org/x/sys v0.45.0
+	golang.org/x/term v0.43.0
 	mvdan.cc/sh/v3 v3.12.0
 )
 
@@ -70,10 +70,10 @@ require (
 	github.com/wasilibs/wazero-helpers v0.0.0-20240620070341-3dff1577cd52 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go4.org v0.0.0-20230225012048-214862532bf5 // indirect
-	golang.org/x/crypto v0.35.0 // indirect
+	golang.org/x/crypto v0.52.0 // indirect
 	golang.org/x/exp v0.0.0-20250218142911-aa4b98e5adaa // indirect
-	golang.org/x/sync v0.11.0 // indirect
-	golang.org/x/text v0.22.0 // indirect
+	golang.org/x/sync v0.20.0 // indirect
+	golang.org/x/text v0.37.0 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
